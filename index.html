@@ -3,14 +3,6 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  script-src 'self' https://www.gstatic.com 'unsafe-inline';
-  style-src 'self' 'unsafe-inline';
-  connect-src 'self' https://arbeitszeit-c3243.firebaseapp.com https://*.googleapis.com https://*.firebaseio.com;
-  img-src 'self'  https:;
-  font-src 'self' ;
-">
 <title>Arbeitszeiten & Gehaltsrechner (Online)</title>
 
 <style>
@@ -85,15 +77,11 @@ button:hover{opacity:.85}
   flex-direction: column;
   gap: 4px;
 }
-.status{display:flex;align-items:center;gap:8px;padding:8px;background:#1e40af;border-radius:8px;color:white;margin-bottom:16px;}
-.status.ok{background:#059669;}
-.status.error{background:var(--danger);}
 
 @media(max-width:700px){
   h1{font-size:1.4em;}
   table{font-size:.9em;}
 }
-label{display:block;margin-bottom:4px;font-size:0.9em;color:var(--muted);}
 </style>
 </head>
 
@@ -107,23 +95,22 @@ label{display:block;margin-bottom:4px;font-size:0.9em;color:var(--muted);}
   <button class="secondary" id="login-apple">Mit Apple anmelden</button>
   <button class="danger" id="logout" style="display:none;">Abmelden</button>
   <span id="user-info"></span>
-  <div id="status" class="status" style="display:none;"></div>
 </div>
 
 <div class="card flex">
   <div style="flex:1;">
-    <label for="month">Abrechnungsmonat</label>
-    <input type="month" id="month" name="month">
+    <label>Abrechnungsmonat</label>
+    <input type="month" id="month">
   </div>
   <div id="extra-amount" class="extra-field">
-    <label for="extraAmount">Sonstiges (€)</label>
-    <input type="number" id="extraAmount" name="extraAmount" min="0" step="0.01" value="0" placeholder="z.B. 50.00">
+    <label>Sonstiges (€)</label>
+    <input type="number" id="extraAmount" min="0" step="0.01" value="0" placeholder="z.B. 50.00">
   </div>
   <button class="primary" onclick="saveMonth()">💾 Speichern</button>
-  <select id="savedMonths" name="savedMonths" onchange="loadSelectedMonth()">
+  <select id="savedMonths" onchange="loadSelectedMonth()">
     <option value="">📂 Gespeicherte Monate</option>
   </select>
-  <button class="delete" id="deleteMonth" name="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;" title="Ausgewählten Monat löschen">🗑️ Löschen</button>
+  <button class="delete" id="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;" title="Ausgewählten Monat löschen">🗑️ Löschen</button>
 </div>
 
 <div class="card">
@@ -166,7 +153,7 @@ label{display:block;margin-bottom:4px;font-size:0.9em;color:var(--muted);}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <script>
-// === FIREBASE CONFIG ===
+// === DEINE FIREBASE CONFIG ===
 const firebaseConfig = {
   apiKey: "AIzaSyBkOZNvEpg0OcBkffwtyDm-ar6VAeucYFk",
   authDomain: "arbeitszeit-c3243.firebaseapp.com",
@@ -195,88 +182,37 @@ const loginGoogle = document.getElementById("login-google");
 const loginApple = document.getElementById("login-apple");
 const logoutBtn = document.getElementById("logout");
 const userInfoSpan = document.getElementById("user-info");
-const statusDiv = document.getElementById("status");
-
-// 🔥 STATUS HELFER
-function showStatus(message, isError = false) {
-  statusDiv.textContent = message;
-  statusDiv.className = `status ${isError ? 'error' : 'ok'}`;
-  statusDiv.style.display = 'flex';
-  setTimeout(() => statusDiv.style.display = 'none', 5000);
-}
-
-// 🔥 EVENT DELEGATION
-tbody.addEventListener('change', function(e) {
-  const row = e.target.closest('tr');
-  if (!row) return;
-  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') {
-    handleRowChange(row);
-  }
-});
-
-tbody.addEventListener('input', function(e) {
-  const row = e.target.closest('tr');
-  if (!row) return;
-  if (e.target.type === 'date' || e.target.type === 'number') {
-    handleRowChange(row);
-  }
-});
-
-tbody.addEventListener('click', function(e) {
-  if (e.target.classList.contains('delete-btn')) {
-    e.target.closest('tr').remove();
-    calculateAll();
-  }
-});
-
-function handleRowChange(row) {
-  const typeSelect = row.querySelector('select');
-  const palletsInput = row.querySelector('input[type="number"]');
-  
-  if (typeSelect && palletsInput) {
-    if (typeSelect.value === 'extra') {
-      palletsInput.disabled = false;
-      palletsInput.style.background = '#020617';
-    } else {
-      palletsInput.disabled = true;
-      palletsInput.style.background = '#334155';
-      palletsInput.value = '';
-    }
-  }
-  calculateAll();
-}
 
 // === Login / Logout ===
-loginGoogle.onclick = async function() {
+loginGoogle.onclick = async () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
   try {
-    const provider = new firebase.auth.GoogleAuthProvider();
     await auth.signInWithPopup(provider);
   } catch(e) {
-    showStatus("Google Login Fehler: " + e.message, true);
+    alert("Google Login Fehler: " + e.message);
   }
 };
 
-loginApple.onclick = async function() {
+loginApple.onclick = async () => {
+  const provider = new firebase.auth.OAuthProvider('apple.com');
+  provider.addScope('email');
+  provider.addScope('name');
   try {
-    const provider = new firebase.auth.OAuthProvider('apple.com');
-    provider.addScope('email');
-    provider.addScope('name');
     await auth.signInWithPopup(provider);
   } catch(e) {
-    showStatus("Apple Login Fehler: " + e.message, true);
+    alert("Apple Login Fehler: " + e.message);
   }
 };
 
-logoutBtn.onclick = function() { auth.signOut(); };
+logoutBtn.onclick = () => auth.signOut();
 
-auth.onAuthStateChanged(async function(user) {
+auth.onAuthStateChanged(user => {
   if (user) {
     userInfoSpan.textContent = (user.email || user.displayName || user.uid).slice(0,20) + "...";
     logoutBtn.style.display = "inline-block";
     loginGoogle.style.display = "none";
     loginApple.style.display = "none";
-    await loadMonthListFromFirestore();
-    await calculateYear();
+    loadMonthListFromFirestore();
   } else {
     userInfoSpan.textContent = "Nicht angemeldet";
     logoutBtn.style.display = "none";
@@ -288,43 +224,72 @@ auth.onAuthStateChanged(async function(user) {
     extraAmount.value = "0";
     for(let i=0;i<5;i++) addRow();
     updateSummary(0, 0, 0);
-    updateYearSummary(0, 0);
   }
 });
 
-// 🔥 addRow()
-function addRow(data) {
+// 🔥 FIX 1: KORRIGIERTE addRow() FUNKTION 🔥
+function addRow(data = {}) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
-    <td><input type="date" value="${data ? (data.date || '') : ''}" id="date-${Date.now()}"></td>
+    <td><input type="date" value="${data.date || ''}"></td>
     <td>
       <select>
         <option value="">--</option>
-        <option value="normal" ${data && data.type === 'normal' ? 'selected' : ''}>normal</option>
-        <option value="doppel" ${data && data.type === 'doppel' ? 'selected' : ''}>doppel</option>
-        <option value="extra" ${data && data.type === 'extra' ? 'selected' : ''}>extra</option>
+        <option value="normal" ${data.type === 'normal' ? 'selected' : ''}>normal</option>
+        <option value="doppel" ${data.type === 'doppel' ? 'selected' : ''}>doppel</option>
+        <option value="extra" ${data.type === 'extra' ? 'selected' : ''}>extra</option>
       </select>
     </td>
-    <td><input type="number" min="0" value="${data ? (data.pallets || '') : ''}" id="pallets-${Date.now()}"></td>
+    <td><input type="number" min="0" value="${data.pallets || ''}"></td>
     <td class="salary">0 €</td>
-    <td><button type="button" class="danger delete-btn">✖</button></td>
+    <td><button class="danger" onclick="this.closest('tr').remove(); calculateAll();">✖</button></td>
   `;
+
+  const typeSelect = tr.querySelector("select");
+  const palletsInput = tr.querySelector('input[type="number"]');
+  const dateInput = tr.querySelector('input[type="date"]');
+
+  // Palettenfeld-Logik
+  const updatePalletsField = () => {
+    if (typeSelect.value === 'extra') {
+      palletsInput.disabled = false;
+      palletsInput.style.background = '#020617';
+    } else {
+      palletsInput.disabled = true;
+      palletsInput.style.background = '#334155';
+      palletsInput.value = '';
+    }
+    calculateAll();
+  };
+
+  typeSelect.onchange = updatePalletsField;
+  dateInput.oninput = calculateAll;
+  palletsInput.oninput = calculateAll;
+  
+  updatePalletsField(); // Initialer Zustand
   tbody.appendChild(tr);
 }
 
-// Berechnungen
-function round5(v) { return Math.ceil(v / 5) * 5; }
+// Rundung auf nächsten 5er
+function round5(v) { 
+  return Math.ceil(v / 5) * 5; 
+}
+
+// Berechnung pro Schicht
 function calc(type, p) {
   if (type === 'normal') return 45;
   if (type === 'doppel') return 90;
   if (type === 'extra') return round5(45 + Math.max(0, p - 17) * 3.3);
   return 0;
 }
+
+// Datum parsen
 function parseDate(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr);
 }
 
+// Monatsberechnung
 function calculateAll() {
   const month = monthInput.value;
   if (!month) {
@@ -338,29 +303,34 @@ function calculateAll() {
 
   let shiftSum = 0, count = 0;
 
-  Array.from(tbody.children).forEach(function(row) {
-    try {
-      const dateInput = row.children[0].querySelector('input[type="date"]');
-      const typeSelect = row.children[1].querySelector('select');
-      const palletsInput = row.children[2].querySelector('input[type="number"]');
-      
-      if (!dateInput || !typeSelect || !palletsInput) return;
-      
-      const dateStr = dateInput.value;
-      const type = typeSelect.value;
-      const pallets = +palletsInput.value || 0;
-      const date = parseDate(dateStr);
-      
-      let salary = 0;
-      if (date && type && date >= start && date <= end) {
+  Array.from(tbody.children).forEach(row => {
+    const dateInput = row.children[0].querySelector('input');
+    const typeSelect = row.children[1].querySelector('select');
+    const palletsInput = row.children[2].querySelector('input');
+    
+    const dateStr = dateInput.value;
+    const type = typeSelect.value;
+    const pallets = +palletsInput.value || 0;
+    const date = parseDate(dateStr);
+    
+    let salary = 0;
+    
+    if (date && type) {
+      if (type !== 'extra') {
+        palletsInput.value = '';
+      }
+      if (type === 'extra' && pallets < 0) {
+        palletsInput.value = 0;
+      }
+
+      if (date >= start && date <= end) {
         salary = calc(type, pallets);
         shiftSum += salary;
         count++;
       }
-      row.querySelector(".salary").textContent = salary + " €";
-    } catch(e) {
-      console.warn("Fehler bei Zeilenberechnung:", e);
     }
+    
+    row.querySelector(".salary").textContent = salary + " €";
   });
 
   const extra = +extraAmount.value || 0;
@@ -375,68 +345,51 @@ function updateSummary(shiftSum, count, total) {
   totalShifts.textContent = count;
 }
 
-// 🔥 Jahresübersicht IMMER laden
-async function calculateYear() {
-  const user = auth.currentUser;
-  if (!user) {
-    updateYearSummary(0, 0);
-    return;
-  }
-  
-  try {
-    const snapshot = await db.collection('users').doc(user.uid)
-      .collection('months').get();
-
-    let sum = 0, count = 0;
-    snapshot.docs.forEach(function(doc) {
-      const data = doc.data();
-      sum += data.total || 0;
-      count += data.count || 0;
-    });
-    updateYearSummary(sum, count);
-  } catch (e) {
-    console.error('Jahresübersicht Fehler:', e);
-    updateYearSummary(0, 0);
-  }
-}
-
-function updateYearSummary(sum, count) {
-  yearSalary.textContent = sum.toLocaleString() + ' €';
-  yearShifts.textContent = count.toLocaleString();
-}
-
 // Event Listeners
 monthInput.onchange = calculateAll;
 extraAmount.oninput = calculateAll;
-savedMonths.onchange = function() {
-  deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
-};
 
-// Firebase Funktionen
+// 🔥 FIX 2: ROBUSTES SPEICHERN 🔥
 async function saveMonth() {
+  console.log("🔧 Speichern gestartet...");
+  
   const month = monthInput.value;
   const user = auth.currentUser;
   
-  if (!month) return showStatus('❌ Bitte Monat wählen!', true);
-  if (!user) return showStatus('❌ Bitte zuerst anmelden!', true);
+  console.log("Monat:", month);
+  console.log("User:", user ? user.uid : "kein User");
+  
+  if (!month) {
+    alert('❌ Bitte Monat wählen!');
+    return;
+  }
+  if (!user) {
+    alert('❌ Bitte zuerst anmelden!');
+    return;
+  }
 
-  const rows = Array.from(tbody.children).map(function(row) {
+  const rows = Array.from(tbody.children).map(row => {
     const dateInput = row.children[0].querySelector('input');
     const typeSelect = row.children[1].querySelector('select');
     const palletsInput = row.children[2].querySelector('input');
+    
     return {
       date: dateInput.value || '',
       type: typeSelect.value || '',
       pallets: palletsInput.value || ''
     };
-  }).filter(function(row) { return row.date && row.type; });
+  }).filter(row => row.date && row.type);
 
   const extra = +extraAmount.value || 0;
+
   if (rows.length === 0 && extra === 0) {
-    return showStatus('❌ Keine Daten zum Speichern!', true);
+    alert('❌ Keine Daten zum Speichern!');
+    return;
   }
 
   try {
+    console.log("🔄 Speichere Daten:", { rows: rows.length, extra });
+    
     await db.collection('users').doc(user.uid)
       .collection('months').doc(month)
       .set({
@@ -444,15 +397,16 @@ async function saveMonth() {
         extraAmount: extra,
         updated: firebase.firestore.FieldValue.serverTimestamp(),
         count: rows.length,
-        shiftTotal: rows.reduce(function(sum, r) { return sum + calc(r.type, +r.pallets || 0); }, 0),
-        total: rows.reduce(function(sum, r) { return sum + calc(r.type, +r.pallets || 0); }, 0) + extra
+        shiftTotal: rows.reduce((sum, r) => sum + calc(r.type, +r.pallets || 0), 0),
+        total: rows.reduce((sum, r) => sum + calc(r.type, +r.pallets || 0), 0) + extra
       });
     
+    console.log("✅ Erfolgreich gespeichert!");
     await loadMonthListFromFirestore();
-    showStatus('✅ Monat gespeichert!');
+    alert('✅ Monat gespeichert!');
   } catch (error) {
-    console.error("Speicherfehler:", error);
-    showStatus("❌ Speicherfehler: " + error.message, true);
+    console.error("❌ Speicherfehler:", error);
+    alert("❌ Speicherfehler: " + error.message);
   }
 }
 
@@ -460,15 +414,15 @@ async function deleteSelectedMonth() {
   const month = savedMonths.value;
   const user = auth.currentUser;
   
-  if (!month) return showStatus('Bitte Monat auswählen!', true);
-  if (!user) return showStatus('Bitte anmelden!', true);
+  if (!month) return alert('Bitte Monat auswählen!');
+  if (!user) return alert('Bitte anmelden!');
   if (!confirm(`🗑️ Wirklich "${month}" löschen?`)) return;
 
   try {
     await db.collection('users').doc(user.uid)
       .collection('months').doc(month).delete();
     
-    showStatus('✅ Monat gelöscht!');
+    alert('✅ Monat gelöscht!');
     savedMonths.value = '';
     deleteMonthBtn.style.display = 'none';
     monthInput.value = '';
@@ -477,9 +431,10 @@ async function deleteSelectedMonth() {
     for (let i = 0; i < 5; i++) addRow();
     calculateAll();
     await loadMonthListFromFirestore();
+    await calculateYear();
   } catch (e) {
     console.error(e);
-    showStatus("❌ Löschen fehlgeschlagen: " + e.message, true);
+    alert("❌ Löschen fehlgeschlagen: " + e.message);
   }
 }
 
@@ -494,7 +449,7 @@ async function loadMonthListFromFirestore() {
     const snapshot = await db.collection('users').doc(user.uid)
       .collection('months').orderBy('updated', 'desc').get();
 
-    snapshot.docs.forEach(function(doc) {
+    snapshot.docs.forEach(doc => {
       const id = doc.id;
       const data = doc.data();
       const option = document.createElement('option');
@@ -505,7 +460,7 @@ async function loadMonthListFromFirestore() {
     
     deleteMonthBtn.style.display = snapshot.size > 0 ? 'inline-block' : 'none';
   } catch (e) {
-    console.error('Monatsliste Fehler:', e);
+    console.error(e);
   }
 }
 
@@ -524,28 +479,58 @@ async function loadSelectedMonth() {
     if (doc.exists) {
       const data = doc.data();
       extraAmount.value = data.extraAmount || '0';
+      
+      // Daten laden + Event-Handler setzen
       const rows = data.rows || [];
-
-      rows.forEach(function(rowData) { addRow(rowData); });
-      while (tbody.children.length < 5) addRow();
+      rows.forEach(rowData => addRow(rowData));
+      
     } else {
+      extraAmount.value = '0';
       for(let i = 0; i < 5; i++) addRow();
     }
-    
     calculateAll();
   } catch (e) {
-    console.error('Laden fehlgeschlagen:', e);
-    showStatus('Laden fehlgeschlagen: ' + e.message, true);
-    tbody.innerHTML = '';
-    for(let i = 0; i < 5; i++) addRow();
-    calculateAll();
+    console.error(e);
+    alert('Laden fehlgeschlagen: ' + e.message);
   }
 }
 
-// 🔥 START
-for (let i = 0; i < 5; i++) {
-  addRow();
+async function calculateYear() {
+  const user = auth.currentUser;
+  if (!user) {
+    updateYearSummary(0, 0);
+    return;
+  }
+  
+  try {
+    const snapshot = await db.collection('users').doc(user.uid)
+      .collection('months').get();
+
+    let sum = 0, count = 0;
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      sum += data.total || 0;
+      count += data.count || 0;
+    });
+    updateYearSummary(sum, count);
+  } catch (e) {
+    console.error(e);
+    updateYearSummary(0, 0);
+  }
 }
+
+function updateYearSummary(sum, count) {
+  yearSalary.textContent = sum + ' €';
+  yearShifts.textContent = count;
+}
+
+savedMonths.onchange = () => {
+  deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
+};
+
+// Initialisierung
+for (let i = 0; i < 5; i++) addRow();
+calculateAll();
 </script>
 
 </body>
