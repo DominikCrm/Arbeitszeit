@@ -216,7 +216,6 @@ auth.onAuthStateChanged(async (user) => {
   }
 });
 
-// 🔥 🎯 DEFINITIVER FIX: addRow() - GELADENE DATEN WERDEN ERHALTEN!
 function addRow(data = {}) {
   const tr = document.createElement("tr");
   
@@ -239,7 +238,7 @@ function addRow(data = {}) {
   const typeSelect = tr.querySelector("select");
   const palletsInput = tr.querySelector('input[type="number"]');
   
-  // 🔥 FIX: Event-Handler NACHDEM DOM vollständig ist
+  // Event-Handler
   const updatePalletsField = () => {
     if (typeSelect.value === 'extra') {
       palletsInput.disabled = false;
@@ -256,7 +255,7 @@ function addRow(data = {}) {
   // Event-Handler setzen
   typeSelect.onchange = updatePalletsField;
   
-  // 🔥 WICHTIG: Initialzustand VOR Event-Handlers setzen!
+  // Initialzustand VOR Event-Handlers setzen
   const currentType = typeSelect.value;
   if (currentType === 'extra') {
     palletsInput.disabled = false;
@@ -330,7 +329,6 @@ function updateSummary(shiftSum, count, total) {
 monthInput.onchange = calculateAll;
 extraAmount.oninput = calculateAll;
 
-// 🔥 loadSelectedMonth - OPTIMIERTE VERSION
 async function loadSelectedMonth() {
   const month = savedMonths.value;
   const user = auth.currentUser;
