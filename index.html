@@ -245,6 +245,11 @@ function addRow(data = {}) {
     <td><button class="danger" onclick="this.closest('tr').remove(); calculateAll();">✖</button></td>
   `;
 
+  // 🔥 FIX: Zentralisierte Event-Bindung
+  bindRowEvents(tr);
+  tbody.appendChild(tr);
+
+
   const typeSelect = tr.querySelector("select");
   const palletsInput = tr.querySelector('input[type="number"]');
   const dateInput = tr.querySelector('input[type="date"]');
@@ -298,39 +303,36 @@ function calculateAll() {
   }
   
   const [y, m] = month.split('-').map(Number);
-  const start = new Date(y, m - 2, 21);
-  const end = new Date(y, m - 1, 20);
+  const start = new Date(y, m - 2, 21); // Vorheriger Monat, 21.
+  const end = new Date(y, m - 1, 20);   // Aktueller Monat, 20.
 
   let shiftSum = 0, count = 0;
 
   Array.from(tbody.children).forEach(row => {
-    const dateInput = row.children[0].querySelector('input');
-    const typeSelect = row.children[1].querySelector('select');
-    const palletsInput = row.children[2].querySelector('input');
-    
-    const dateStr = dateInput.value;
-    const type = typeSelect.value;
-    const pallets = +palletsInput.value || 0;
-    const date = parseDate(dateStr);
-    
-    let salary = 0;
-    
-    if (date && type) {
-      if (type !== 'extra') {
-        palletsInput.value = '';
-      }
-      if (type === 'extra' && pallets < 0) {
-        palletsInput.value = 0;
-      }
-
-      if (date >= start && date <= end) {
+    try {
+      const dateInput = row.children[0]?.querySelector('input[type="date"]');
+      const typeSelect = row.children[1]?.querySelector('select');
+      const palletsInput = row.children[2]?.querySelector('input[type="number"]');
+      
+      if (!dateInput || !typeSelect || !palletsInput) return;
+      
+      const dateStr = dateInput.value;
+      const type = typeSelect.value;
+      const pallets = +palletsInput.value || 0;
+      const date = parseDate(dateStr);
+      
+      let salary = 0;
+      
+      if (date && type && date >= start && date <= end) {
         salary = calc(type, pallets);
         shiftSum += salary;
         count++;
       }
+      
+      row.querySelector(".salary").textContent = salary + " €";
+    } catch(e) {
+      console.warn("Fehler bei Zeilenberechnung:", e);
     }
-    
-    row.querySelector(".salary").textContent = salary + " €";
   });
 
   const extra = +extraAmount.value || 0;
@@ -471,7 +473,7 @@ async function loadSelectedMonth() {
 
   try {
     monthInput.value = month;
-    tbody.innerHTML = '';
+    tbody.innerHTML = ''; // Alle alten Zeilen löschen
 
     const doc = await db.collection('users').doc(user.uid)
       .collection('months').doc(month).get();
@@ -480,21 +482,70 @@ async function loadSelectedMonth() {
       const data = doc.data();
       extraAmount.value = data.extraAmount || '0';
       
-      // Daten laden + Event-Handler setzen
+      // 🔥 FIX: Daten laden UND Event-Handler neu binden
       const rows = data.rows || [];
-      rows.forEach(rowData => addRow(rowData));
+      
+      // Erst leere Zeilen für die Differenz hinzufügen
+      const neededRows = Math.max(5, rows.length);
+      for(let i = tbody.children.length; i < neededRows; i++) {
+        addRow();
+      }
+      
+      // Dann gespeicherte Daten eintragen
+      rows.forEach((rowData, index) => {
+        if (tbody.children[index]) {
+          const row = tbody.children[index];
+          const dateInput = row.children[0].querySelector('input');
+          const typeSelect = row.children[1].querySelector('select');
+          const palletsInput = row.children[2].querySelector('input');
+          
+          dateInput.value = rowData.date || '';
+          typeSelect.value = rowData.type || '';
+          palletsInput.value = rowData.pallets || '';
+          
+          // Event-Handler explizit neu binden
+          bindRowEvents(row);
+        }
+      });
+      
+      // 🔥 FIX: calculateAll() erzwingen nach vollständigem Laden
+      setTimeout(calculateAll, 100);
       
     } else {
-      extraAmount.value = '0';
+      // Standard: 5 leere Zeilen
       for(let i = 0; i < 5; i++) addRow();
     }
-    calculateAll();
   } catch (e) {
     console.error(e);
     alert('Laden fehlgeschlagen: ' + e.message);
   }
 }
 
+function bindRowEvents(row) {
+  const typeSelect = row.querySelector("select");
+  const palletsInput = row.querySelector('input[type="number"]');
+  const dateInput = row.querySelector('input[type="date"]');
+  
+  const updatePalletsField = () => {
+    if (typeSelect.value === 'extra') {
+      palletsInput.disabled = false;
+      palletsInput.style.background = '#020617';
+    } else {
+      palletsInput.disabled = true;
+      palletsInput.style.background = '#334155';
+      palletsInput.value = '';
+    }
+    calculateAll();
+  };
+
+  // Event-Handler explizit setzen
+  typeSelect.onchange = updatePalletsField;
+  dateInput.oninput = calculateAll;
+  palletsInput.oninput = calculateAll;
+  
+  updatePalletsField(); // Initialer Zustand
+}
+  
 async function calculateYear() {
   const user = auth.currentUser;
   if (!user) {
