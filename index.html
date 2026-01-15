@@ -228,15 +228,13 @@ auth.onAuthStateChanged(user => {
 });
 
 // 🔥 FIX 1: KORRIGIERTE addRow() FUNKTION 🔥
-function addRow(data={}) {
+function addRow(data = {}) {
   const tr = document.createElement("tr");
-  
-  // Template ohne problematische disabled-Logik
   tr.innerHTML = `
     <td><input type="date" value="${data.date || ''}"></td>
     <td>
       <select>
-        <option value=""></option>
+        <option value="">--</option>
         <option value="normal" ${data.type === 'normal' ? 'selected' : ''}>normal</option>
         <option value="doppel" ${data.type === 'doppel' ? 'selected' : ''}>doppel</option>
         <option value="extra" ${data.type === 'extra' ? 'selected' : ''}>extra</option>
@@ -246,13 +244,13 @@ function addRow(data={}) {
     <td class="salary">0 €</td>
     <td><button class="danger" onclick="this.closest('tr').remove(); calculateAll();">✖</button></td>
   `;
-  
-  // Event Handler NACH dem DOM-Einfügen setzen
+
   const typeSelect = tr.querySelector("select");
   const palletsInput = tr.querySelector('input[type="number"]');
-  
+  const dateInput = tr.querySelector('input[type="date"]');
+
   // Palettenfeld-Logik
-  function updatePalletsField() {
+  const updatePalletsField = () => {
     if (typeSelect.value === 'extra') {
       palletsInput.disabled = false;
       palletsInput.style.background = '#020617';
@@ -262,16 +260,13 @@ function addRow(data={}) {
       palletsInput.value = '';
     }
     calculateAll();
-  }
-  
+  };
+
   typeSelect.onchange = updatePalletsField;
+  dateInput.oninput = calculateAll;
+  palletsInput.oninput = calculateAll;
+  
   updatePalletsField(); // Initialer Zustand
-  
-  // Alle Inputs überwachen
-  tr.querySelectorAll("input").forEach(input => {
-    input.oninput = calculateAll;
-  });
-  
   tbody.appendChild(tr);
 }
 
@@ -484,16 +479,19 @@ async function loadSelectedMonth() {
     if (doc.exists) {
       const data = doc.data();
       extraAmount.value = data.extraAmount || '0';
+      
+      // Daten laden + Event-Handler setzen
       const rows = data.rows || [];
-      rows.forEach(addRow);
+      rows.forEach(rowData => addRow(rowData));
+      
     } else {
       extraAmount.value = '0';
-      for (let i = 0; i < 5; i++) addRow();
+      for(let i = 0; i < 5; i++) addRow();
     }
     calculateAll();
   } catch (e) {
     console.error(e);
-    alert('Laden fehlgeschlagen');
+    alert('Laden fehlgeschlagen: ' + e.message);
   }
 }
 
