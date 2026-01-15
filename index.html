@@ -183,6 +183,48 @@ const loginApple = document.getElementById("login-apple");
 const logoutBtn = document.getElementById("logout");
 const userInfoSpan = document.getElementById("user-info");
 
+// 🔥 EVENT DELEGATION - EINMALIG bei Seitenstart (LÖST ALLE PROBLEME!)
+tbody.addEventListener('change', function(e) {
+  const row = e.target.closest('tr');
+  if (!row) return;
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') {
+    handleRowChange(row);
+  }
+});
+
+tbody.addEventListener('input', function(e) {
+  const row = e.target.closest('tr');
+  if (!row) return;
+  if (e.target.type === 'date' || e.target.type === 'number') {
+    handleRowChange(row);
+  }
+});
+
+tbody.addEventListener('click', function(e) {
+  if (e.target.classList.contains('delete-btn')) {
+    e.target.closest('tr').remove();
+    calculateAll();
+  }
+});
+
+function handleRowChange(row) {
+  const typeSelect = row.querySelector('select');
+  const palletsInput = row.querySelector('input[type="number"]');
+  
+  // Extra-Logik für Palettenfeld
+  if (typeSelect && palletsInput) {
+    if (typeSelect.value === 'extra') {
+      palletsInput.disabled = false;
+      palletsInput.style.background = '#020617';
+    } else {
+      palletsInput.disabled = true;
+      palletsInput.style.background = '#334155';
+      palletsInput.value = '';
+    }
+  }
+  calculateAll();
+}
+
 // === Login / Logout ===
 loginGoogle.onclick = async () => {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -227,7 +269,7 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-// 🔥 KORRIGIERTE addRow() - EINMALIGE Event-Bindung
+// 🔥 VEREINFACHTE addRow() - KEINE Event-Binding-Probleme mehr!
 function addRow(data = {}) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
@@ -242,35 +284,9 @@ function addRow(data = {}) {
     </td>
     <td><input type="number" min="0" value="${data.pallets || ''}"></td>
     <td class="salary">0 €</td>
-    <td><button class="danger" onclick="this.closest('tr').remove(); calculateAll();">✖</button></td>
+    <td><button type="button" class="danger delete-btn">✖</button></td>
   `;
-
-  bindRowEvents(tr);
   tbody.appendChild(tr);
-}
-
-// 🔥 ZENTRALISIERTE Event-Bindung
-function bindRowEvents(row) {
-  const typeSelect = row.querySelector("select");
-  const palletsInput = row.querySelector('input[type="number"]');
-  const dateInput = row.querySelector('input[type="date"]');
-  
-  const updatePalletsField = () => {
-    if (typeSelect.value === 'extra') {
-      palletsInput.disabled = false;
-      palletsInput.style.background = '#020617';
-    } else {
-      palletsInput.disabled = true;
-      palletsInput.style.background = '#334155';
-      palletsInput.value = '';
-    }
-    calculateAll();
-  };
-
-  typeSelect.onchange = updatePalletsField;
-  dateInput.oninput = calculateAll;
-  palletsInput.oninput = calculateAll;
-  updatePalletsField(); // Initialer Zustand
 }
 
 // Rundung auf nächsten 5er
@@ -349,7 +365,7 @@ function updateSummary(shiftSum, count, total) {
 monthInput.onchange = calculateAll;
 extraAmount.oninput = calculateAll;
 
-// 🔥 ROBUSTES SPEICHERN
+// 🔥 VEREINFACHTES SPEICHERN
 async function saveMonth() {
   const month = monthInput.value;
   const user = auth.currentUser;
@@ -456,7 +472,7 @@ async function loadMonthListFromFirestore() {
   }
 }
 
-// 🔥 KORRIGIERTE loadSelectedMonth()
+// 🔥 KOMPLETT KORRIGIERTE loadSelectedMonth() - KEINE TIMING PROBLEME!
 async function loadSelectedMonth() {
   const month = savedMonths.value;
   const user = auth.currentUser;
@@ -472,31 +488,28 @@ async function loadSelectedMonth() {
     if (doc.exists) {
       const data = doc.data();
       extraAmount.value = data.extraAmount || '0';
-      
       const rows = data.rows || [];
+
+      // Einfach alle Zeilen laden - Event-Delegation kümmert sich um alles!
+      rows.forEach(rowData => addRow(rowData));
       
-      for(let i = 0; i < Math.max(5, rows.length); i++) {
+      // Rest mit leeren Zeilen auffüllen
+      while (tbody.children.length < 5) {
         addRow();
       }
-      
-      rows.forEach((rowData, index) => {
-        if (tbody.children[index]) {
-          const row = tbody.children[index];
-          row.children[0].querySelector('input').value = rowData.date || '';
-          row.children[1].querySelector('select').value = rowData.type || '';
-          row.children[2].querySelector('input').value = rowData.pallets || '';
-        }
-      });
-      
     } else {
       for(let i = 0; i < 5; i++) addRow();
     }
     
-    setTimeout(calculateAll, 50);
+    calculateAll();
     
   } catch (e) {
-    console.error(e);
+    console.error('Laden fehlgeschlagen:', e);
     alert('Laden fehlgeschlagen: ' + e.message);
+    // Fallback
+    tbody.innerHTML = '';
+    for(let i = 0; i < 5; i++) addRow();
+    calculateAll();
   }
 }
 
@@ -534,8 +547,10 @@ savedMonths.onchange = () => {
   deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
 };
 
-// Initialisierung
-for (let i = 0; i < 5; i++) addRow();
+// 🔥 INITIALISIERUNG
+for (let i = 0; i < 5; i++) {
+  addRow();
+}
 calculateAll();
 </script>
 
