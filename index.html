@@ -183,6 +183,47 @@ const loginApple = document.getElementById("login-apple");
 const logoutBtn = document.getElementById("logout");
 const userInfoSpan = document.getElementById("user-info");
 
+// 🔥 EVENT DELEGATION - EINMALIG bei Seitenstart (LÖST ALLE DOM/EVENT PROBLEME!)
+tbody.addEventListener('change', function(e) {
+  const row = e.target.closest('tr');
+  if (!row) return;
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') {
+    handleRowChange(row);
+  }
+});
+
+tbody.addEventListener('input', function(e) {
+  const row = e.target.closest('tr');
+  if (!row) return;
+  if (e.target.type === 'date' || e.target.type === 'number') {
+    handleRowChange(row);
+  }
+});
+
+tbody.addEventListener('click', function(e) {
+  if (e.target.classList.contains('delete-btn')) {
+    e.target.closest('tr').remove();
+    calculateAll();
+  }
+});
+
+function handleRowChange(row) {
+  const typeSelect = row.querySelector('select');
+  const palletsInput = row.querySelector('input[type="number"]');
+  
+  if (typeSelect && palletsInput) {
+    if (typeSelect.value === 'extra') {
+      palletsInput.disabled = false;
+      palletsInput.style.background = '#020617';
+    } else {
+      palletsInput.disabled = true;
+      palletsInput.style.background = '#334155';
+      palletsInput.value = '';
+    }
+  }
+  calculateAll();
+}
+
 // === Login / Logout ===
 loginGoogle.onclick = async () => {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -227,7 +268,7 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-// 🔥 FIX 1: KORRIGIERTE addRow() FUNKTION 🔥
+// 🔥 VEREINFACHTE addRow() - KEINE Event-Binding-Probleme mehr!
 function addRow(data = {}) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
@@ -242,31 +283,8 @@ function addRow(data = {}) {
     </td>
     <td><input type="number" min="0" value="${data.pallets || ''}"></td>
     <td class="salary">0 €</td>
-    <td><button class="danger" onclick="this.closest('tr').remove(); calculateAll();">✖</button></td>
+    <td><button type="button" class="danger delete-btn">✖</button></td>
   `;
-
-  const typeSelect = tr.querySelector("select");
-  const palletsInput = tr.querySelector('input[type="number"]');
-  const dateInput = tr.querySelector('input[type="date"]');
-
-  // Palettenfeld-Logik
-  const updatePalletsField = () => {
-    if (typeSelect.value === 'extra') {
-      palletsInput.disabled = false;
-      palletsInput.style.background = '#020617';
-    } else {
-      palletsInput.disabled = true;
-      palletsInput.style.background = '#334155';
-      palletsInput.value = '';
-    }
-    calculateAll();
-  };
-
-  typeSelect.onchange = updatePalletsField;
-  dateInput.oninput = calculateAll;
-  palletsInput.oninput = calculateAll;
-  
-  updatePalletsField(); // Initialer Zustand
   tbody.appendChild(tr);
 }
 
@@ -304,33 +322,30 @@ function calculateAll() {
   let shiftSum = 0, count = 0;
 
   Array.from(tbody.children).forEach(row => {
-    const dateInput = row.children[0].querySelector('input');
-    const typeSelect = row.children[1].querySelector('select');
-    const palletsInput = row.children[2].querySelector('input');
-    
-    const dateStr = dateInput.value;
-    const type = typeSelect.value;
-    const pallets = +palletsInput.value || 0;
-    const date = parseDate(dateStr);
-    
-    let salary = 0;
-    
-    if (date && type) {
-      if (type !== 'extra') {
-        palletsInput.value = '';
-      }
-      if (type === 'extra' && pallets < 0) {
-        palletsInput.value = 0;
-      }
-
-      if (date >= start && date <= end) {
+    try {
+      const dateInput = row.children[0]?.querySelector('input[type="date"]');
+      const typeSelect = row.children[1]?.querySelector('select');
+      const palletsInput = row.children[2]?.querySelector('input[type="number"]');
+      
+      if (!dateInput || !typeSelect || !palletsInput) return;
+      
+      const dateStr = dateInput.value;
+      const type = typeSelect.value;
+      const pallets = +palletsInput.value || 0;
+      const date = parseDate(dateStr);
+      
+      let salary = 0;
+      
+      if (date && type && date >= start && date <= end) {
         salary = calc(type, pallets);
         shiftSum += salary;
         count++;
       }
+      
+      row.querySelector(".salary").textContent = salary + " €";
+    } catch(e) {
+      console.warn("Fehler bei Zeilenberechnung:", e);
     }
-    
-    row.querySelector(".salary").textContent = salary + " €";
   });
 
   const extra = +extraAmount.value || 0;
@@ -349,15 +364,10 @@ function updateSummary(shiftSum, count, total) {
 monthInput.onchange = calculateAll;
 extraAmount.oninput = calculateAll;
 
-// 🔥 FIX 2: ROBUSTES SPEICHERN 🔥
+// 🔥 ROBUSTES SPEICHERN
 async function saveMonth() {
-  console.log("🔧 Speichern gestartet...");
-  
   const month = monthInput.value;
   const user = auth.currentUser;
-  
-  console.log("Monat:", month);
-  console.log("User:", user ? user.uid : "kein User");
   
   if (!month) {
     alert('❌ Bitte Monat wählen!');
@@ -388,8 +398,6 @@ async function saveMonth() {
   }
 
   try {
-    console.log("🔄 Speichere Daten:", { rows: rows.length, extra });
-    
     await db.collection('users').doc(user.uid)
       .collection('months').doc(month)
       .set({
@@ -401,7 +409,6 @@ async function saveMonth() {
         total: rows.reduce((sum, r) => sum + calc(r.type, +r.pallets || 0), 0) + extra
       });
     
-    console.log("✅ Erfolgreich gespeichert!");
     await loadMonthListFromFirestore();
     alert('✅ Monat gespeichert!');
   } catch (error) {
@@ -464,6 +471,7 @@ async function loadMonthListFromFirestore() {
   }
 }
 
+// 🔥 KOMPLETT KORRIGIERTE loadSelectedMonth()
 async function loadSelectedMonth() {
   const month = savedMonths.value;
   const user = auth.currentUser;
@@ -479,19 +487,28 @@ async function loadSelectedMonth() {
     if (doc.exists) {
       const data = doc.data();
       extraAmount.value = data.extraAmount || '0';
-      
-      // Daten laden + Event-Handler setzen
       const rows = data.rows || [];
+
+      // Einfach alle Zeilen laden - Event-Delegation kümmert sich um alles!
       rows.forEach(rowData => addRow(rowData));
       
+      // Rest mit leeren Zeilen auffüllen
+      while (tbody.children.length < 5) {
+        addRow();
+      }
     } else {
-      extraAmount.value = '0';
       for(let i = 0; i < 5; i++) addRow();
     }
+    
     calculateAll();
+    
   } catch (e) {
-    console.error(e);
+    console.error('Laden fehlgeschlagen:', e);
     alert('Laden fehlgeschlagen: ' + e.message);
+    // Fallback
+    tbody.innerHTML = '';
+    for(let i = 0; i < 5; i++) addRow();
+    calculateAll();
   }
 }
 
@@ -524,12 +541,15 @@ function updateYearSummary(sum, count) {
   yearShifts.textContent = count;
 }
 
+// Event-Listener
 savedMonths.onchange = () => {
   deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
 };
 
-// Initialisierung
-for (let i = 0; i < 5; i++) addRow();
+// 🔥 INITIALISIERUNG
+for (let i = 0; i < 5; i++) {
+  addRow();
+}
 calculateAll();
 </script>
 
