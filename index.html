@@ -3,6 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' https://www.gstatic.com 'unsafe-inline';
+  style-src 'self' 'unsafe-inline';
+  connect-src 'self' https://arbeitszeit-c3243.firebaseapp.com https://*.googleapis.com https://*.firebaseio.com;
+  img-src 'self'  https:;
+  font-src 'self' ;
+">
 <title>Arbeitszeiten & Gehaltsrechner (Online)</title>
 
 <style>
@@ -77,11 +85,15 @@ button:hover{opacity:.85}
   flex-direction: column;
   gap: 4px;
 }
+.status{display:flex;align-items:center;gap:8px;padding:8px;background:#1e40af;border-radius:8px;color:white;margin-bottom:16px;}
+.status.ok{background:#059669;}
+.status.error{background:var(--danger);}
 
 @media(max-width:700px){
   h1{font-size:1.4em;}
   table{font-size:.9em;}
 }
+label{display:block;margin-bottom:4px;font-size:0.9em;color:var(--muted);}
 </style>
 </head>
 
@@ -95,22 +107,23 @@ button:hover{opacity:.85}
   <button class="secondary" id="login-apple">Mit Apple anmelden</button>
   <button class="danger" id="logout" style="display:none;">Abmelden</button>
   <span id="user-info"></span>
+  <div id="status" class="status" style="display:none;"></div>
 </div>
 
 <div class="card flex">
   <div style="flex:1;">
-    <label>Abrechnungsmonat</label>
-    <input type="month" id="month">
+    <label for="month">Abrechnungsmonat</label>
+    <input type="month" id="month" name="month">
   </div>
   <div id="extra-amount" class="extra-field">
-    <label>Sonstiges (€)</label>
-    <input type="number" id="extraAmount" min="0" step="0.01" value="0" placeholder="z.B. 50.00">
+    <label for="extraAmount">Sonstiges (€)</label>
+    <input type="number" id="extraAmount" name="extraAmount" min="0" step="0.01" value="0" placeholder="z.B. 50.00">
   </div>
   <button class="primary" onclick="saveMonth()">💾 Speichern</button>
-  <select id="savedMonths" onchange="loadSelectedMonth()">
+  <select id="savedMonths" name="savedMonths" onchange="loadSelectedMonth()">
     <option value="">📂 Gespeicherte Monate</option>
   </select>
-  <button class="delete" id="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;" title="Ausgewählten Monat löschen">🗑️ Löschen</button>
+  <button class="delete" id="deleteMonth" name="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;" title="Ausgewählten Monat löschen">🗑️ Löschen</button>
 </div>
 
 <div class="card">
@@ -153,7 +166,7 @@ button:hover{opacity:.85}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <script>
-// === DEINE FIREBASE CONFIG ===
+// === FIREBASE CONFIG ===
 const firebaseConfig = {
   apiKey: "AIzaSyBkOZNvEpg0OcBkffwtyDm-ar6VAeucYFk",
   authDomain: "arbeitszeit-c3243.firebaseapp.com",
@@ -182,8 +195,17 @@ const loginGoogle = document.getElementById("login-google");
 const loginApple = document.getElementById("login-apple");
 const logoutBtn = document.getElementById("logout");
 const userInfoSpan = document.getElementById("user-info");
+const statusDiv = document.getElementById("status");
 
-// 🔥 EVENT DELEGATION - EINMALIG bei Seitenstart (LÖST ALLE DOM/EVENT PROBLEME!)
+// 🔥 STATUS HELFER
+function showStatus(message, isError = false) {
+  statusDiv.textContent = message;
+  statusDiv.className = `status ${isError ? 'error' : 'ok'}`;
+  statusDiv.style.display = 'flex';
+  setTimeout(() => statusDiv.style.display = 'none', 5000);
+}
+
+// 🔥 EVENT DELEGATION
 tbody.addEventListener('change', function(e) {
   const row = e.target.closest('tr');
   if (!row) return;
@@ -225,35 +247,36 @@ function handleRowChange(row) {
 }
 
 // === Login / Logout ===
-loginGoogle.onclick = async () => {
-  const provider = new firebase.auth.GoogleAuthProvider();
+loginGoogle.onclick = async function() {
   try {
+    const provider = new firebase.auth.GoogleAuthProvider();
     await auth.signInWithPopup(provider);
   } catch(e) {
-    alert("Google Login Fehler: " + e.message);
+    showStatus("Google Login Fehler: " + e.message, true);
   }
 };
 
-loginApple.onclick = async () => {
-  const provider = new firebase.auth.OAuthProvider('apple.com');
-  provider.addScope('email');
-  provider.addScope('name');
+loginApple.onclick = async function() {
   try {
+    const provider = new firebase.auth.OAuthProvider('apple.com');
+    provider.addScope('email');
+    provider.addScope('name');
     await auth.signInWithPopup(provider);
   } catch(e) {
-    alert("Apple Login Fehler: " + e.message);
+    showStatus("Apple Login Fehler: " + e.message, true);
   }
 };
 
-logoutBtn.onclick = () => auth.signOut();
+logoutBtn.onclick = function() { auth.signOut(); };
 
-auth.onAuthStateChanged(user => {
+auth.onAuthStateChanged(async function(user) {
   if (user) {
     userInfoSpan.textContent = (user.email || user.displayName || user.uid).slice(0,20) + "...";
     logoutBtn.style.display = "inline-block";
     loginGoogle.style.display = "none";
     loginApple.style.display = "none";
-    loadMonthListFromFirestore();
+    await loadMonthListFromFirestore();
+    await calculateYear();
   } else {
     userInfoSpan.textContent = "Nicht angemeldet";
     logoutBtn.style.display = "none";
@@ -265,49 +288,43 @@ auth.onAuthStateChanged(user => {
     extraAmount.value = "0";
     for(let i=0;i<5;i++) addRow();
     updateSummary(0, 0, 0);
+    updateYearSummary(0, 0);
   }
 });
 
-// 🔥 VEREINFACHTE addRow() - KEINE Event-Binding-Probleme mehr!
-function addRow(data = {}) {
+// 🔥 addRow()
+function addRow(data) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
-    <td><input type="date" value="${data.date || ''}"></td>
+    <td><input type="date" value="${data ? (data.date || '') : ''}" id="date-${Date.now()}"></td>
     <td>
       <select>
         <option value="">--</option>
-        <option value="normal" ${data.type === 'normal' ? 'selected' : ''}>normal</option>
-        <option value="doppel" ${data.type === 'doppel' ? 'selected' : ''}>doppel</option>
-        <option value="extra" ${data.type === 'extra' ? 'selected' : ''}>extra</option>
+        <option value="normal" ${data && data.type === 'normal' ? 'selected' : ''}>normal</option>
+        <option value="doppel" ${data && data.type === 'doppel' ? 'selected' : ''}>doppel</option>
+        <option value="extra" ${data && data.type === 'extra' ? 'selected' : ''}>extra</option>
       </select>
     </td>
-    <td><input type="number" min="0" value="${data.pallets || ''}"></td>
+    <td><input type="number" min="0" value="${data ? (data.pallets || '') : ''}" id="pallets-${Date.now()}"></td>
     <td class="salary">0 €</td>
     <td><button type="button" class="danger delete-btn">✖</button></td>
   `;
   tbody.appendChild(tr);
 }
 
-// Rundung auf nächsten 5er
-function round5(v) { 
-  return Math.ceil(v / 5) * 5; 
-}
-
-// Berechnung pro Schicht
+// Berechnungen
+function round5(v) { return Math.ceil(v / 5) * 5; }
 function calc(type, p) {
   if (type === 'normal') return 45;
   if (type === 'doppel') return 90;
   if (type === 'extra') return round5(45 + Math.max(0, p - 17) * 3.3);
   return 0;
 }
-
-// Datum parsen
 function parseDate(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr);
 }
 
-// Monatsberechnung
 function calculateAll() {
   const month = monthInput.value;
   if (!month) {
@@ -321,11 +338,11 @@ function calculateAll() {
 
   let shiftSum = 0, count = 0;
 
-  Array.from(tbody.children).forEach(row => {
+  Array.from(tbody.children).forEach(function(row) {
     try {
-      const dateInput = row.children[0]?.querySelector('input[type="date"]');
-      const typeSelect = row.children[1]?.querySelector('select');
-      const palletsInput = row.children[2]?.querySelector('input[type="number"]');
+      const dateInput = row.children[0].querySelector('input[type="date"]');
+      const typeSelect = row.children[1].querySelector('select');
+      const palletsInput = row.children[2].querySelector('input[type="number"]');
       
       if (!dateInput || !typeSelect || !palletsInput) return;
       
@@ -335,13 +352,11 @@ function calculateAll() {
       const date = parseDate(dateStr);
       
       let salary = 0;
-      
       if (date && type && date >= start && date <= end) {
         salary = calc(type, pallets);
         shiftSum += salary;
         count++;
       }
-      
       row.querySelector(".salary").textContent = salary + " €";
     } catch(e) {
       console.warn("Fehler bei Zeilenberechnung:", e);
@@ -360,41 +375,65 @@ function updateSummary(shiftSum, count, total) {
   totalShifts.textContent = count;
 }
 
+// 🔥 Jahresübersicht IMMER laden
+async function calculateYear() {
+  const user = auth.currentUser;
+  if (!user) {
+    updateYearSummary(0, 0);
+    return;
+  }
+  
+  try {
+    const snapshot = await db.collection('users').doc(user.uid)
+      .collection('months').get();
+
+    let sum = 0, count = 0;
+    snapshot.docs.forEach(function(doc) {
+      const data = doc.data();
+      sum += data.total || 0;
+      count += data.count || 0;
+    });
+    updateYearSummary(sum, count);
+  } catch (e) {
+    console.error('Jahresübersicht Fehler:', e);
+    updateYearSummary(0, 0);
+  }
+}
+
+function updateYearSummary(sum, count) {
+  yearSalary.textContent = sum.toLocaleString() + ' €';
+  yearShifts.textContent = count.toLocaleString();
+}
+
 // Event Listeners
 monthInput.onchange = calculateAll;
 extraAmount.oninput = calculateAll;
+savedMonths.onchange = function() {
+  deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
+};
 
-// 🔥 ROBUSTES SPEICHERN
+// Firebase Funktionen
 async function saveMonth() {
   const month = monthInput.value;
   const user = auth.currentUser;
   
-  if (!month) {
-    alert('❌ Bitte Monat wählen!');
-    return;
-  }
-  if (!user) {
-    alert('❌ Bitte zuerst anmelden!');
-    return;
-  }
+  if (!month) return showStatus('❌ Bitte Monat wählen!', true);
+  if (!user) return showStatus('❌ Bitte zuerst anmelden!', true);
 
-  const rows = Array.from(tbody.children).map(row => {
+  const rows = Array.from(tbody.children).map(function(row) {
     const dateInput = row.children[0].querySelector('input');
     const typeSelect = row.children[1].querySelector('select');
     const palletsInput = row.children[2].querySelector('input');
-    
     return {
       date: dateInput.value || '',
       type: typeSelect.value || '',
       pallets: palletsInput.value || ''
     };
-  }).filter(row => row.date && row.type);
+  }).filter(function(row) { return row.date && row.type; });
 
   const extra = +extraAmount.value || 0;
-
   if (rows.length === 0 && extra === 0) {
-    alert('❌ Keine Daten zum Speichern!');
-    return;
+    return showStatus('❌ Keine Daten zum Speichern!', true);
   }
 
   try {
@@ -405,15 +444,15 @@ async function saveMonth() {
         extraAmount: extra,
         updated: firebase.firestore.FieldValue.serverTimestamp(),
         count: rows.length,
-        shiftTotal: rows.reduce((sum, r) => sum + calc(r.type, +r.pallets || 0), 0),
-        total: rows.reduce((sum, r) => sum + calc(r.type, +r.pallets || 0), 0) + extra
+        shiftTotal: rows.reduce(function(sum, r) { return sum + calc(r.type, +r.pallets || 0); }, 0),
+        total: rows.reduce(function(sum, r) { return sum + calc(r.type, +r.pallets || 0); }, 0) + extra
       });
     
     await loadMonthListFromFirestore();
-    alert('✅ Monat gespeichert!');
+    showStatus('✅ Monat gespeichert!');
   } catch (error) {
-    console.error("❌ Speicherfehler:", error);
-    alert("❌ Speicherfehler: " + error.message);
+    console.error("Speicherfehler:", error);
+    showStatus("❌ Speicherfehler: " + error.message, true);
   }
 }
 
@@ -421,15 +460,15 @@ async function deleteSelectedMonth() {
   const month = savedMonths.value;
   const user = auth.currentUser;
   
-  if (!month) return alert('Bitte Monat auswählen!');
-  if (!user) return alert('Bitte anmelden!');
+  if (!month) return showStatus('Bitte Monat auswählen!', true);
+  if (!user) return showStatus('Bitte anmelden!', true);
   if (!confirm(`🗑️ Wirklich "${month}" löschen?`)) return;
 
   try {
     await db.collection('users').doc(user.uid)
       .collection('months').doc(month).delete();
     
-    alert('✅ Monat gelöscht!');
+    showStatus('✅ Monat gelöscht!');
     savedMonths.value = '';
     deleteMonthBtn.style.display = 'none';
     monthInput.value = '';
@@ -438,10 +477,9 @@ async function deleteSelectedMonth() {
     for (let i = 0; i < 5; i++) addRow();
     calculateAll();
     await loadMonthListFromFirestore();
-    await calculateYear();
   } catch (e) {
     console.error(e);
-    alert("❌ Löschen fehlgeschlagen: " + e.message);
+    showStatus("❌ Löschen fehlgeschlagen: " + e.message, true);
   }
 }
 
@@ -456,7 +494,7 @@ async function loadMonthListFromFirestore() {
     const snapshot = await db.collection('users').doc(user.uid)
       .collection('months').orderBy('updated', 'desc').get();
 
-    snapshot.docs.forEach(doc => {
+    snapshot.docs.forEach(function(doc) {
       const id = doc.id;
       const data = doc.data();
       const option = document.createElement('option');
@@ -467,11 +505,10 @@ async function loadMonthListFromFirestore() {
     
     deleteMonthBtn.style.display = snapshot.size > 0 ? 'inline-block' : 'none';
   } catch (e) {
-    console.error(e);
+    console.error('Monatsliste Fehler:', e);
   }
 }
 
-// 🔥 KOMPLETT KORRIGIERTE loadSelectedMonth()
 async function loadSelectedMonth() {
   const month = savedMonths.value;
   const user = auth.currentUser;
@@ -489,68 +526,26 @@ async function loadSelectedMonth() {
       extraAmount.value = data.extraAmount || '0';
       const rows = data.rows || [];
 
-      // Einfach alle Zeilen laden - Event-Delegation kümmert sich um alles!
-      rows.forEach(rowData => addRow(rowData));
-      
-      // Rest mit leeren Zeilen auffüllen
-      while (tbody.children.length < 5) {
-        addRow();
-      }
+      rows.forEach(function(rowData) { addRow(rowData); });
+      while (tbody.children.length < 5) addRow();
     } else {
       for(let i = 0; i < 5; i++) addRow();
     }
     
     calculateAll();
-    
   } catch (e) {
     console.error('Laden fehlgeschlagen:', e);
-    alert('Laden fehlgeschlagen: ' + e.message);
-    // Fallback
+    showStatus('Laden fehlgeschlagen: ' + e.message, true);
     tbody.innerHTML = '';
     for(let i = 0; i < 5; i++) addRow();
     calculateAll();
   }
 }
 
-async function calculateYear() {
-  const user = auth.currentUser;
-  if (!user) {
-    updateYearSummary(0, 0);
-    return;
-  }
-  
-  try {
-    const snapshot = await db.collection('users').doc(user.uid)
-      .collection('months').get();
-
-    let sum = 0, count = 0;
-    snapshot.docs.forEach(doc => {
-      const data = doc.data();
-      sum += data.total || 0;
-      count += data.count || 0;
-    });
-    updateYearSummary(sum, count);
-  } catch (e) {
-    console.error(e);
-    updateYearSummary(0, 0);
-  }
-}
-
-function updateYearSummary(sum, count) {
-  yearSalary.textContent = sum + ' €';
-  yearShifts.textContent = count;
-}
-
-// Event-Listener
-savedMonths.onchange = () => {
-  deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
-};
-
-// 🔥 INITIALISIERUNG
+// 🔥 START
 for (let i = 0; i < 5; i++) {
   addRow();
 }
-calculateAll();
 </script>
 
 </body>
