@@ -227,7 +227,7 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-// 🔥 FIX 1: KORRIGIERTE addRow() FUNKTION 🔥
+// 🔥 KORRIGIERTE addRow() - EINMALIGE Event-Bindung
 function addRow(data = {}) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
@@ -245,16 +245,16 @@ function addRow(data = {}) {
     <td><button class="danger" onclick="this.closest('tr').remove(); calculateAll();">✖</button></td>
   `;
 
-  // 🔥 FIX: Zentralisierte Event-Bindung
   bindRowEvents(tr);
   tbody.appendChild(tr);
+}
 
-
-  const typeSelect = tr.querySelector("select");
-  const palletsInput = tr.querySelector('input[type="number"]');
-  const dateInput = tr.querySelector('input[type="date"]');
-
-  // Palettenfeld-Logik
+// 🔥 ZENTRALISIERTE Event-Bindung
+function bindRowEvents(row) {
+  const typeSelect = row.querySelector("select");
+  const palletsInput = row.querySelector('input[type="number"]');
+  const dateInput = row.querySelector('input[type="date"]');
+  
   const updatePalletsField = () => {
     if (typeSelect.value === 'extra') {
       palletsInput.disabled = false;
@@ -270,9 +270,7 @@ function addRow(data = {}) {
   typeSelect.onchange = updatePalletsField;
   dateInput.oninput = calculateAll;
   palletsInput.oninput = calculateAll;
-  
   updatePalletsField(); // Initialer Zustand
-  tbody.appendChild(tr);
 }
 
 // Rundung auf nächsten 5er
@@ -303,8 +301,8 @@ function calculateAll() {
   }
   
   const [y, m] = month.split('-').map(Number);
-  const start = new Date(y, m - 2, 21); // Vorheriger Monat, 21.
-  const end = new Date(y, m - 1, 20);   // Aktueller Monat, 20.
+  const start = new Date(y, m - 2, 21);
+  const end = new Date(y, m - 1, 20);
 
   let shiftSum = 0, count = 0;
 
@@ -351,15 +349,10 @@ function updateSummary(shiftSum, count, total) {
 monthInput.onchange = calculateAll;
 extraAmount.oninput = calculateAll;
 
-// 🔥 FIX 2: ROBUSTES SPEICHERN 🔥
+// 🔥 ROBUSTES SPEICHERN
 async function saveMonth() {
-  console.log("🔧 Speichern gestartet...");
-  
   const month = monthInput.value;
   const user = auth.currentUser;
-  
-  console.log("Monat:", month);
-  console.log("User:", user ? user.uid : "kein User");
   
   if (!month) {
     alert('❌ Bitte Monat wählen!');
@@ -390,8 +383,6 @@ async function saveMonth() {
   }
 
   try {
-    console.log("🔄 Speichere Daten:", { rows: rows.length, extra });
-    
     await db.collection('users').doc(user.uid)
       .collection('months').doc(month)
       .set({
@@ -403,7 +394,6 @@ async function saveMonth() {
         total: rows.reduce((sum, r) => sum + calc(r.type, +r.pallets || 0), 0) + extra
       });
     
-    console.log("✅ Erfolgreich gespeichert!");
     await loadMonthListFromFirestore();
     alert('✅ Monat gespeichert!');
   } catch (error) {
@@ -466,6 +456,7 @@ async function loadMonthListFromFirestore() {
   }
 }
 
+// 🔥 KORRIGIERTE loadSelectedMonth()
 async function loadSelectedMonth() {
   const month = savedMonths.value;
   const user = auth.currentUser;
@@ -473,7 +464,7 @@ async function loadSelectedMonth() {
 
   try {
     monthInput.value = month;
-    tbody.innerHTML = ''; // Alle alten Zeilen löschen
+    tbody.innerHTML = '';
 
     const doc = await db.collection('users').doc(user.uid)
       .collection('months').doc(month).get();
@@ -482,70 +473,33 @@ async function loadSelectedMonth() {
       const data = doc.data();
       extraAmount.value = data.extraAmount || '0';
       
-      // 🔥 FIX: Daten laden UND Event-Handler neu binden
       const rows = data.rows || [];
       
-      // Erst leere Zeilen für die Differenz hinzufügen
-      const neededRows = Math.max(5, rows.length);
-      for(let i = tbody.children.length; i < neededRows; i++) {
+      for(let i = 0; i < Math.max(5, rows.length); i++) {
         addRow();
       }
       
-      // Dann gespeicherte Daten eintragen
       rows.forEach((rowData, index) => {
         if (tbody.children[index]) {
           const row = tbody.children[index];
-          const dateInput = row.children[0].querySelector('input');
-          const typeSelect = row.children[1].querySelector('select');
-          const palletsInput = row.children[2].querySelector('input');
-          
-          dateInput.value = rowData.date || '';
-          typeSelect.value = rowData.type || '';
-          palletsInput.value = rowData.pallets || '';
-          
-          // Event-Handler explizit neu binden
-          bindRowEvents(row);
+          row.children[0].querySelector('input').value = rowData.date || '';
+          row.children[1].querySelector('select').value = rowData.type || '';
+          row.children[2].querySelector('input').value = rowData.pallets || '';
         }
       });
       
-      // 🔥 FIX: calculateAll() erzwingen nach vollständigem Laden
-      setTimeout(calculateAll, 100);
-      
     } else {
-      // Standard: 5 leere Zeilen
       for(let i = 0; i < 5; i++) addRow();
     }
+    
+    setTimeout(calculateAll, 50);
+    
   } catch (e) {
     console.error(e);
     alert('Laden fehlgeschlagen: ' + e.message);
   }
 }
 
-function bindRowEvents(row) {
-  const typeSelect = row.querySelector("select");
-  const palletsInput = row.querySelector('input[type="number"]');
-  const dateInput = row.querySelector('input[type="date"]');
-  
-  const updatePalletsField = () => {
-    if (typeSelect.value === 'extra') {
-      palletsInput.disabled = false;
-      palletsInput.style.background = '#020617';
-    } else {
-      palletsInput.disabled = true;
-      palletsInput.style.background = '#334155';
-      palletsInput.value = '';
-    }
-    calculateAll();
-  };
-
-  // Event-Handler explizit setzen
-  typeSelect.onchange = updatePalletsField;
-  dateInput.oninput = calculateAll;
-  palletsInput.oninput = calculateAll;
-  
-  updatePalletsField(); // Initialer Zustand
-}
-  
 async function calculateYear() {
   const user = auth.currentUser;
   if (!user) {
@@ -575,6 +529,7 @@ function updateYearSummary(sum, count) {
   yearShifts.textContent = count;
 }
 
+// Event-Listener
 savedMonths.onchange = () => {
   deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
 };
