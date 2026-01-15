@@ -211,15 +211,16 @@ auth.onAuthStateChanged(async (user) => {
     savedMonths.innerHTML = '<option value="">📂 Gespeicherte Monate</option>';
     deleteMonthBtn.style.display = "none";
     tbody.innerHTML = ""; extraAmount.value = "0"; monthInput.value = "";
-    for(let i=0;i<5;i++) addRow();
+    for(let i=0;i<5;i++) addRow({});
     updateSummary(0, 0, 0); updateYearSummary(0, 0);
   }
 });
 
-// 🔥 🎯 HAUPTFIX: addRow() respektiert geladene Daten!
-function addRow(data={}) {
+// 🔥 🎯 DEFINITIVER FIX: addRow() - GELADENE DATEN WERDEN ERHALTEN!
+function addRow(data = {}) {
   const tr = document.createElement("tr");
   
+  // 1. HTML mit geladenen Daten setzen
   tr.innerHTML = `
     <td><input type="date" value="${data.date || ''}"></td>
     <td>
@@ -238,23 +239,24 @@ function addRow(data={}) {
   const typeSelect = tr.querySelector("select");
   const palletsInput = tr.querySelector('input[type="number"]');
   
-  // 🔥 FIX: PALLETS WERT NUR BEIM WECHSEL LEEREN, NICHT BEIM LADEN!
-  function updatePalletsField() {
+  // 🔥 FIX: Event-Handler NACHDEM DOM vollständig ist
+  const updatePalletsField = () => {
     if (typeSelect.value === 'extra') {
       palletsInput.disabled = false;
       palletsInput.style.background = '#020617';
     } else {
       palletsInput.disabled = true;
       palletsInput.style.background = '#334155';
-      // 🔥 WICHTIG: Nur leeren wenn NICHT beim initialen Laden!
-      if (data.date) palletsInput.value = ''; // Nur bei echten Änderungen
+      // ✅ PALLETS WERT BEI LADEN BEHALTEN! Nur neue Rows leeren
+      if (!data.date) palletsInput.value = '';
     }
     calculateAll();
-  }
+  };
   
+  // Event-Handler setzen
   typeSelect.onchange = updatePalletsField;
   
-  // 🔥 FIX: Initial nur KORREKT setzen (geladene Daten erhalten!)
+  // 🔥 WICHTIG: Initialzustand VOR Event-Handlers setzen!
   const currentType = typeSelect.value;
   if (currentType === 'extra') {
     palletsInput.disabled = false;
@@ -264,11 +266,15 @@ function addRow(data={}) {
     palletsInput.style.background = '#334155';
   }
   
-  tr.querySelectorAll("input").forEach(input => input.oninput = calculateAll);
+  // Input Events
+  tr.querySelectorAll("input").forEach(input => {
+    input.oninput = calculateAll;
+  });
+  
   tbody.appendChild(tr);
 }
 
-// Rundung, calc, parseDate, calculateAll, updateSummary (unverändert)
+// === UNVERÄNDERT: Berechnungsfunktionen ===
 function round5(v) { return Math.ceil(v / 5) * 5; }
 function calc(type, p) {
   if (type === 'normal') return 45;
@@ -324,7 +330,46 @@ function updateSummary(shiftSum, count, total) {
 monthInput.onchange = calculateAll;
 extraAmount.oninput = calculateAll;
 
-// saveMonth, loadSelectedMonth, etc. (unverändert)
+// 🔥 loadSelectedMonth - OPTIMIERTE VERSION
+async function loadSelectedMonth() {
+  const month = savedMonths.value;
+  const user = auth.currentUser;
+  if (!month || !user) return;
+
+  monthInput.value = month;
+  tbody.innerHTML = '';
+
+  try {
+    const doc = await db.collection('users').doc(user.uid)
+      .collection('months').doc(month).get();
+
+    if (doc.exists) {
+      const data = doc.data();
+      extraAmount.value = data.extraAmount || '0';
+      
+      const rows = data.rows || [];
+      rows.forEach(rowData => {
+        if (rowData.date && rowData.type) {
+          addRow(rowData);
+        }
+      });
+      
+      while (tbody.children.length < 5) {
+        addRow({});
+      }
+      
+      setTimeout(calculateAll, 300);
+    } else {
+      extraAmount.value = '0';
+      for (let i = 0; i < 5; i++) addRow({});
+      calculateAll();
+    }
+  } catch(e) {
+    console.error(e);
+    alert('Laden fehlgeschlagen: ' + e.message);
+  }
+}
+
 async function saveMonth() {
   const month = monthInput.value, user = auth.currentUser;
   if (!month) return alert('❌ Bitte Monat wählen!');
@@ -355,33 +400,6 @@ async function saveMonth() {
   } catch (error) {
     console.error("❌ Speicherfehler:", error);
     alert("❌ Speicherfehler: " + error.message);
-  }
-}
-
-async function loadSelectedMonth() {
-  const month = savedMonths.value, user = auth.currentUser;
-  if (!month || !user) return;
-
-  try {
-    monthInput.value = month;
-    tbody.innerHTML = '';
-
-    const doc = await db.collection('users').doc(user.uid).collection('months').doc(month).get();
-    if (doc.exists) {
-      const data = doc.data();
-      extraAmount.value = data.extraAmount || '0';
-      (data.rows || []).forEach(rowData => {
-        if (rowData.date && rowData.type) addRow(rowData);
-      });
-      while (tbody.children.length < 5) addRow({}); // Leere Rows
-    } else {
-      extraAmount.value = '0';
-      for (let i = 0; i < 5; i++) addRow({});
-    }
-    setTimeout(calculateAll, 100);
-  } catch (e) {
-    console.error(e);
-    alert('Laden fehlgeschlagen: ' + e.message);
   }
 }
 
@@ -450,8 +468,6 @@ function updateYearSummary(sum, count) {
 }
 
 savedMonths.onchange = () => deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
-monthInput.onchange = calculateAll;
-extraAmount.oninput = calculateAll;
 
 // Initialisierung
 for (let i = 0; i < 5; i++) addRow({});
