@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Arbeitszeiten & Gehaltsrechner</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Arbeitszeiten & Gehaltsrechner (Online)</title>
 
 <style>
 :root{
@@ -14,9 +14,7 @@
   --accent:#38bdf8;
   --danger:#ef4444;
 }
-
 *{box-sizing:border-box}
-
 body{
   margin:0;
   font-family:system-ui, sans-serif;
@@ -24,7 +22,6 @@ body{
   color:var(--text);
   padding:16px;
 }
-
 .container{max-width:1100px;margin:auto;}
 h1,h2{margin:8px 0;}
 .card{
@@ -59,19 +56,27 @@ input,select{
   font-size:1em;
 }
 button{
-  padding:12px 14px;
+  padding:10px 12px;
   border-radius:8px;
   border:none;
   cursor:pointer;
   font-weight:600;
-  font-size:1em;
+  font-size:0.95em;
 }
 .primary{background:var(--accent);color:#020617}
 .secondary{background:#334155;color:var(--text)}
 .danger{background:var(--danger);color:white}
+.delete{background:#f59e0b;color:white}
 button:hover{opacity:.85}
 .salary{font-weight:700;color:var(--accent);}
 .summary p{font-size:1.1em;margin:6px 0;}
+#user-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+#extra-amount {flex: 1; min-width: 200px;}
+.extra-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
 @media(max-width:700px){
   h1{font-size:1.4em;}
@@ -83,61 +88,146 @@ button:hover{opacity:.85}
 <body>
 <div class="container">
 
-<h1>🗓️ Arbeitszeiten & Gehaltsrechner</h1>
+<h1>🗓️ Arbeitszeiten & Gehaltsrechner (Online)</h1>
+
+<div class="card" id="user-bar">
+  <button class="secondary" id="login-google">Mit Google anmelden</button>
+  <button class="secondary" id="login-apple">Mit Apple anmelden</button>
+  <button class="danger" id="logout" style="display:none;">Abmelden</button>
+  <span id="user-info"></span>
+</div>
 
 <div class="card flex">
-  <div>
+  <div style="flex:1;">
     <label>Abrechnungsmonat</label>
     <input type="month" id="month">
+  </div>
+  <div id="extra-amount" class="extra-field">
+    <label>Sonstiges (€)</label>
+    <input type="number" id="extraAmount" min="0" step="0.01" value="0" placeholder="z.B. 50.00">
   </div>
   <button class="primary" onclick="saveMonth()">💾 Speichern</button>
   <select id="savedMonths" onchange="loadSelectedMonth()">
     <option value="">📂 Gespeicherte Monate</option>
   </select>
+  <button class="delete" id="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;" title="Ausgewählten Monat löschen">🗑️ Löschen</button>
 </div>
 
 <div class="card">
-<div class="table-wrapper">
-<table>
-<thead>
-<tr>
-  <th>Datum</th>
-  <th>Schicht</th>
-  <th>Paletten</th>
-  <th>€</th>
-  <th></th>
-</tr>
-</thead>
-<tbody id="tbody"></tbody>
-</table>
-</div>
-<br>
-<button class="primary" onclick="addRow()">➕ Schicht hinzufügen</button>
-</div>
-
-<div class="card summary">
-<h2>📊 Monatsübersicht</h2>
-<p>Schichten gesamt: <span id="totalShifts">0</span></p>
-<p>Gesamtgehalt: <span id="totalSalary">0 €</span></p>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Schicht</th>
+          <th>Paletten</th>
+          <th>€</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <br>
+  <button class="primary" onclick="addRow()">➕ Schicht hinzufügen</button>
 </div>
 
 <div class="card summary">
-<h2>📅 Jahresübersicht</h2>
-<p>Schichten Jahr: <span id="yearShifts">0</span></p>
-<p>Gehalt Jahr: <span id="yearSalary">0 €</span></p>
+  <h2>📊 Monatsübersicht</h2>
+  <p>Schichten gesamt: <span id="totalShifts">0</span></p>
+  <p>Schicht-Gehalt: <span id="shiftSalary">0 €</span></p>
+  <p><strong>Gesamt (inkl. sonstiges): <span id="totalSalary">0 €</span></strong></p>
+</div>
+
+<div class="card summary">
+  <h2>📅 Jahresübersicht</h2>
+  <p>Schichten Jahr: <span id="yearShifts">0</span></p>
+  <p>Gehalt Jahr: <span id="yearSalary">0 €</span></p>
 </div>
 
 </div>
+
+<!-- 🔥 DEINE ECHTE FIREBASE CONFIG IST HIER EINGEFÜGT! 🔥 -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <script>
-const tbody=document.getElementById("tbody");
-const monthInput=document.getElementById("month");
-const savedMonths=document.getElementById("savedMonths");
-const totalSalary=document.getElementById("totalSalary");
-const totalShifts=document.getElementById("totalShifts");
-const yearSalary=document.getElementById("yearSalary");
-const yearShifts=document.getElementById("yearShifts");
+// === DEINE ECHTE FIREBASE CONFIG ===
+const firebaseConfig = {
+  apiKey: "AIzaSyBkOZNvEpg0OcBkffwtyDm-ar6VAeucYFk",
+  authDomain: "arbeitszeit-c3243.firebaseapp.com",
+  projectId: "arbeitszeit-c3243",
+  storageBucket: "arbeitszeit-c3243.firebasestorage.app",
+  messagingSenderId: "8215248023",
+  appId: "1:8215248023:web:cf7465987b5cdfa36fbdd2"
+};
 
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// === DOM-Elemente ===
+const tbody        = document.getElementById("tbody");
+const monthInput   = document.getElementById("month");
+const extraAmount  = document.getElementById("extraAmount");
+const savedMonths  = document.getElementById("savedMonths");
+const deleteMonthBtn = document.getElementById("deleteMonth");
+const totalSalary  = document.getElementById("totalSalary");
+const shiftSalary  = document.getElementById("shiftSalary");
+const totalShifts  = document.getElementById("totalShifts");
+const yearSalary   = document.getElementById("yearSalary");
+const yearShifts   = document.getElementById("yearShifts");
+const loginGoogle  = document.getElementById("login-google");
+const loginApple   = document.getElementById("login-apple");
+const logoutBtn    = document.getElementById("logout");
+const userInfoSpan = document.getElementById("user-info");
+
+// === Login / Logout ===
+loginGoogle.onclick = async () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try { 
+    await auth.signInWithPopup(provider); 
+  } catch(e){ 
+    alert("Google Login Fehler: " + e.message); 
+  }
+};
+
+loginApple.onclick = async () => {
+  const provider = new firebase.auth.OAuthProvider('apple.com');
+  provider.addScope('email');
+  provider.addScope('name');
+  try { 
+    await auth.signInWithPopup(provider); 
+  } catch(e){ 
+    alert("Apple Login Fehler: " + e.message); 
+  }
+};
+
+logoutBtn.onclick = () => auth.signOut();
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    userInfoSpan.textContent = (user.email || user.displayName || user.uid).slice(0,20) + "...";
+    logoutBtn.style.display  = "inline-block";
+    loginGoogle.style.display = "none";
+    loginApple.style.display = "none";
+    loadMonthListFromFirestore();
+  } else {
+    userInfoSpan.textContent = "Nicht angemeldet";
+    logoutBtn.style.display  = "none";
+    loginGoogle.style.display = "inline-block";
+    loginApple.style.display = "inline-block";
+    savedMonths.innerHTML    = '<option value="">📂 Gespeicherte Monate</option>';
+    deleteMonthBtn.style.display = "none";
+    tbody.innerHTML          = "";
+    extraAmount.value = "0";
+    for(let i=0;i<5;i++) addRow();
+    updateSummary(0, 0, 0);
+  }
+});
+
+// === Tabellen-Logik ===
 function addRow(data={}){
   const tr=document.createElement("tr");
   tr.innerHTML=`
@@ -152,19 +242,14 @@ function addRow(data={}){
     </td>
     <td><input type="number" min="0" value="${data.pallets||''}" ${data.type==='extra'?'':'disabled'}></td>
     <td class="salary">0</td>
-    <td><button class="danger" onclick="this.closest('tr').remove();calculateAll()">✖</button></td>
+    <td><button class="danger" onclick="this.closest('tr').remove();calculateAll();">✖</button></td>
   `;
-  const typeSelect = tr.querySelector("select");
+  const typeSelect   = tr.querySelector("select");
   const palletsInput = tr.querySelector("td:nth-child(3) input");
-  
-  // Schicht-Änderung: Paletten nur bei 'extra'
+
   typeSelect.onchange = () => {
-    if(typeSelect.value==='extra'){
-      palletsInput.disabled=false;
-    } else {
-      palletsInput.disabled=true;
-      palletsInput.value='';
-    }
+    palletsInput.disabled = typeSelect.value !== 'extra';
+    if(typeSelect.value !== 'extra') palletsInput.value = '';
     calculateAll();
   };
 
@@ -183,113 +268,218 @@ function calc(type,p){
   return 0;
 }
 
-// Robust Datum parsen (DD.MM.YYYY oder YYYY-MM-DD)
+// Datum parsen
 function parseDate(dateStr){
   if(!dateStr) return null;
-  if(dateStr.includes('.')){
-    const [d,m,y] = dateStr.split('.');
-    return new Date(`${y}-${m}-${d}`);
-  }
   return new Date(dateStr);
 }
 
-// Berechnung Gesamt
+// Monatsberechnung
 function calculateAll(){
   const month=monthInput.value;
-  if(!month) return;
+  if(!month){
+    updateSummary(0, 0, 0);
+    return;
+  }
   const [y,m]=month.split('-').map(Number);
   const start=new Date(y,m-2,21);
   const end=new Date(y,m-1,20);
 
-  let sum=0,count=0;
+  let shiftSum=0, count=0;
 
   [...tbody.children].forEach(r=>{
     const dateStr = r.children[0].querySelector('input').value;
-    const t = r.children[1].querySelector('select').value;
-    const p = +r.children[2].querySelector('input').value || 0;
-    const d = parseDate(dateStr);
+    const t       = r.children[1].querySelector('select').value;
+    const p       = +r.children[2].querySelector('input').value || 0;
+    const d       = parseDate(dateStr);
     let s=0;
-
     const palletsInput = r.children[2].querySelector('input');
 
-    // Validierung
     if(d && t){
       if(t!=='extra') palletsInput.value='';
       if(t==='extra' && p<0) palletsInput.value=0;
 
       if(d>=start && d<=end){
         s=calc(t,p);
-        sum+=s;
+        shiftSum+=s;
         count++;
       }
     }
-    r.querySelector(".salary").textContent=s;
+    r.querySelector(".salary").textContent=s+" €";
   });
 
-  totalSalary.textContent=sum+" €";
-  totalShifts.textContent=count;
+  const extra = +extraAmount.value || 0;
+  const total = shiftSum + extra;
+  updateSummary(shiftSum, count, total);
   calculateYear();
 }
 
-// Monatsdaten speichern
-function saveMonth(){
+function updateSummary(shiftSum, count, total) {
+  shiftSalary.textContent=shiftSum+" €";
+  totalSalary.textContent=total+" €";
+  totalShifts.textContent=count;
+}
+
+monthInput.onchange=calculateAll;
+extraAmount.oninput=calculateAll;
+
+// === Firestore Funktionen ===
+async function saveMonth(){
   const m = monthInput.value;
-  if(!m) return alert('Bitte Monat wählen!');
+  const user = auth.currentUser;
+  if(!m)   return alert('Bitte Monat wählen!');
+  if(!user) return alert('Bitte zuerst anmelden!');
+
   const data = [...tbody.children].map(r=>({
-    date:r.children[0].querySelector('input').value,
-    type:r.children[1].querySelector('select').value,
-    pallets:r.children[2].querySelector('input').value
-  }));
-  localStorage.setItem('month-'+m,JSON.stringify(data));
-  loadMonthList();
-  alert('Monat gespeichert!');
+    date: r.children[0].querySelector('input').value || '',
+    type: r.children[1].querySelector('select').value || '',
+    pallets: r.children[2].querySelector('input').value || ''
+  })).filter(row => row.date && row.type);
+
+  const extra = +extraAmount.value || 0;
+
+  if(data.length === 0 && extra === 0) return alert('Keine Daten zum Speichern!');
+
+  try{
+    await db.collection('users').doc(user.uid)
+      .collection('months').doc(m)
+      .set({ 
+        rows: data, 
+        extraAmount: extra,
+        updated: firebase.firestore.FieldValue.serverTimestamp(),
+        count: data.length,
+        shiftTotal: data.reduce((sum, r) => sum + calc(r.type, +r.pallets || 0), 0),
+        total: data.reduce((sum, r) => sum + calc(r.type, +r.pallets || 0), 0) + extra
+      });
+    
+    await loadMonthListFromFirestore();
+    alert('✅ Monat gespeichert!');
+  }catch(e){
+    console.error(e);
+    alert("❌ Speicherfehler: " + e.message);
+  }
 }
 
-// Monat laden
-function loadSelectedMonth(){
+async function deleteSelectedMonth(){
   const m = savedMonths.value;
-  if(!m) return;
-  monthInput.value=m;
-  tbody.innerHTML='';
-  const data = JSON.parse(localStorage.getItem('month-'+m));
-  data.forEach(addRow);
-  calculateAll();
+  const user = auth.currentUser;
+  
+  if(!m) return alert('Bitte Monat auswählen!');
+  if(!user) return alert('Bitte anmelden!');
+  if(!confirm(`🗑️ Wirklich "${m}" löschen?`)) return;
+
+  try {
+    await db.collection('users').doc(user.uid)
+      .collection('months').doc(m).delete();
+    
+    alert('✅ Monat gelöscht!');
+    savedMonths.value = '';
+    deleteMonthBtn.style.display = 'none';
+    monthInput.value = '';
+    extraAmount.value = '0';
+    tbody.innerHTML = '';
+    for(let i=0;i<5;i++) addRow();
+    calculateAll();
+    await loadMonthListFromFirestore();
+    await calculateYear();
+  } catch(e) {
+    console.error(e);
+    alert("❌ Löschen fehlgeschlagen: " + e.message);
+  }
 }
 
-// Liste gespeicherter Monate
-function loadMonthList(){
-  savedMonths.innerHTML='<option value="">📂 Gespeicherte Monate</option>';
-  Object.keys(localStorage)
-    .filter(k=>k.startsWith('month-'))
-    .sort()
-    .forEach(k=>{
-      const m = k.replace('month-','');
-      const o = document.createElement('option');
-      o.value=m; o.textContent=m;
+async function loadMonthListFromFirestore(){
+  const user = auth.currentUser;
+  if(!user) return;
+  
+  savedMonths.innerHTML = '<option value="">📂 Gespeicherte Monate</option>';
+  deleteMonthBtn.style.display = 'none';
+  
+  try{
+    const snap = await db.collection('users').doc(user.uid)
+      .collection('months').orderBy('updated', 'desc').get();
+
+    snap.docs.forEach(doc=>{
+      const id = doc.id;
+      const data = doc.data();
+      const o=document.createElement('option');
+      o.value=id;
+      o.textContent=`${id} (${data.count || 0} Schichten, ${data.total || 0}€)`;
       savedMonths.appendChild(o);
     });
+    
+    deleteMonthBtn.style.display = snap.size > 0 ? 'inline-block' : 'none';
+  }catch(e){
+    console.error(e);
+  }
 }
 
-// Jahresübersicht berechnen
-function calculateYear(){
-  let sum=0,count=0;
-  Object.keys(localStorage).forEach(k=>{
-    if(k.startsWith('month-')){
-      JSON.parse(localStorage[k]).forEach(r=>{
-        if(r.type){
-          sum+=calc(r.type,+r.pallets||0);
-          count++;
-        }
-      });
+async function loadSelectedMonth(){
+  const m = savedMonths.value;
+  const user = auth.currentUser;
+  if(!m || !user) return;
+
+  try{
+    monthInput.value = m;
+    tbody.innerHTML = '';
+
+    const doc = await db.collection('users').doc(user.uid)
+      .collection('months').doc(m).get();
+
+    if(doc.exists){
+      const data = doc.data();
+      extraAmount.value = data.extraAmount || '0';
+      const rows = data.rows || [];
+      rows.forEach(addRow);
+    } else {
+      extraAmount.value = '0';
+      for(let i=0;i<5;i++) addRow();
     }
-  });
+    calculateAll();
+  }catch(e){
+    console.error(e);
+    alert('Laden fehlgeschlagen');
+  }
+}
+
+// Jahresübersicht
+async function calculateYear(){
+  const user = auth.currentUser;
+  if(!user){
+    updateYearSummary(0, 0);
+    return;
+  }
+  
+  try{
+    const snap = await db.collection('users').doc(user.uid)
+      .collection('months').get();
+
+    let sum=0, count=0;
+    snap.docs.forEach(doc => {
+      const data = doc.data();
+      sum += data.total || 0;
+      count += data.count || 0;
+    });
+    updateYearSummary(sum, count);
+  }catch(e){
+    console.error(e);
+    updateYearSummary(0, 0);
+  }
+}
+
+function updateYearSummary(sum, count) {
   yearSalary.textContent=sum+' €';
   yearShifts.textContent=count;
 }
 
-monthInput.onchange=calculateAll;
-loadMonthList();
+// Lösch-Button bei Auswahl sichtbar machen
+savedMonths.onchange = () => {
+  deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
+};
+
+// Initialisierung
 for(let i=0;i<5;i++) addRow();
+calculateAll();
 </script>
 
 </body>
