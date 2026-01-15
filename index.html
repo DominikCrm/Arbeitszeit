@@ -418,48 +418,55 @@ async function loadSelectedMonth() {
   if (!month || !user) return;
 
   try {
-    // Monat setzen
-    monthInput.value = month;
+    console.log("🔍 DEBUG: Lade Monat:", month);
     
-    // Tabelle leeren
+    monthInput.value = month;
     tbody.innerHTML = '';
     
-    // Daten laden
     const doc = await db.collection('users').doc(user.uid)
       .collection('months').doc(month).get();
 
     if (doc.exists) {
       const data = doc.data();
+      console.log("🔍 DEBUG: GELADENE DATEN:", data);
+      console.log("🔍 DEBUG: Rows Array:", data.rows);
       
-      // Extra Amount setzen
       extraAmount.value = data.extraAmount || '0';
       
-      // 🔥 FIX: Rows korrekt laden mit richtigen Daten
       const rows = data.rows || [];
+      console.log("🔍 DEBUG: Anzahl Rows zum Laden:", rows.length);
       
-      // Alle Rows laden (auch wenn sie leer sind)
-      rows.forEach(rowData => {
-        addRow(rowData); // Übergibt die gespeicherten Daten
+      // 🔥 WICHTIG: DOM leeren und neu aufbauen
+      tbody.innerHTML = '';
+      
+      rows.forEach((rowData, index) => {
+        console.log(`🔍 DEBUG Row ${index}:`, rowData);
+        addRow(rowData);
       });
       
-      // Falls keine Rows, 5 leere hinzufügen
       if (rows.length === 0) {
-        for (let i = 0; i < 5; i++) {
-          addRow();
-        }
+        for (let i = 0; i < 5; i++) addRow();
       }
+      
+      // 🔥 DEBUG: DOM-Inhalte nach Laden prüfen
+      setTimeout(() => {
+        console.log("🔍 DEBUG: DOM nach Laden:");
+        Array.from(tbody.children).forEach((row, i) => {
+          const dateInput = row.children[0].querySelector('input').value;
+          const typeSelect = row.children[1].querySelector('select').value;
+          console.log(`Row ${i}: date="${dateInput}", type="${typeSelect}"`);
+        });
+        calculateAll();
+      }, 200);
+      
     } else {
+      console.log("🔍 DEBUG: Dokument existiert nicht");
       extraAmount.value = '0';
-      for (let i = 0; i < 5; i++) {
-        addRow();
-      }
+      for (let i = 0; i < 5; i++) addRow();
     }
     
-    // Berechnungen aktualisieren
-    setTimeout(calculateAll, 100); // Kleiner Delay für DOM-Updates
-    
   } catch (e) {
-    console.error(e);
+    console.error("🔥 FEHLER:", e);
     alert('Laden fehlgeschlagen: ' + e.message);
   }
 }
