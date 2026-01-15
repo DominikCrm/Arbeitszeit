@@ -206,13 +206,16 @@ loginApple.onclick = async () => {
 
 logoutBtn.onclick = () => auth.signOut();
 
-auth.onAuthStateChanged(user => {
+auth.onAuthStateChanged(async (user) => {
   if (user) {
     userInfoSpan.textContent = (user.email || user.displayName || user.uid).slice(0,20) + "...";
     logoutBtn.style.display = "inline-block";
     loginGoogle.style.display = "none";
     loginApple.style.display = "none";
-    loadMonthListFromFirestore();
+    
+    // 🔥 FIX 1: Automatisch Monatsliste und Jahresübersicht laden
+    await loadMonthListFromFirestore();
+    await calculateYear();
   } else {
     userInfoSpan.textContent = "Nicht angemeldet";
     logoutBtn.style.display = "none";
@@ -222,16 +225,17 @@ auth.onAuthStateChanged(user => {
     deleteMonthBtn.style.display = "none";
     tbody.innerHTML = "";
     extraAmount.value = "0";
+    monthInput.value = "";
     for(let i=0;i<5;i++) addRow();
     updateSummary(0, 0, 0);
+    updateYearSummary(0, 0);
   }
 });
 
-// 🔥 FIX 1: KORRIGIERTE addRow() FUNKTION 🔥
+// 🔥 FIX 2: KORRIGIERTE addRow() FUNKTION - Daten korrekt übergeben
 function addRow(data={}) {
   const tr = document.createElement("tr");
   
-  // Template ohne problematische disabled-Logik
   tr.innerHTML = `
     <td><input type="date" value="${data.date || ''}"></td>
     <td>
@@ -250,6 +254,7 @@ function addRow(data={}) {
   // Event Handler NACH dem DOM-Einfügen setzen
   const typeSelect = tr.querySelector("select");
   const palletsInput = tr.querySelector('input[type="number"]');
+  const dateInput = tr.querySelector('input[type="date"]');
   
   // Palettenfeld-Logik
   function updatePalletsField() {
@@ -341,7 +346,6 @@ function calculateAll() {
   const extra = +extraAmount.value || 0;
   const total = shiftSum + extra;
   updateSummary(shiftSum, count, total);
-  calculateYear();
 }
 
 function updateSummary(shiftSum, count, total) {
@@ -354,15 +358,10 @@ function updateSummary(shiftSum, count, total) {
 monthInput.onchange = calculateAll;
 extraAmount.oninput = calculateAll;
 
-// 🔥 FIX 2: ROBUSTES SPEICHERN 🔥
+// 🔥 FIX 3: KORRIGIERTE saveMonth() - Korrekte Daten serialisierung
 async function saveMonth() {
-  console.log("🔧 Speichern gestartet...");
-  
   const month = monthInput.value;
   const user = auth.currentUser;
-  
-  console.log("Monat:", month);
-  console.log("User:", user ? user.uid : "kein User");
   
   if (!month) {
     alert('❌ Bitte Monat wählen!');
@@ -393,8 +392,6 @@ async function saveMonth() {
   }
 
   try {
-    console.log("🔄 Speichere Daten:", { rows: rows.length, extra });
-    
     await db.collection('users').doc(user.uid)
       .collection('months').doc(month)
       .set({
@@ -406,12 +403,64 @@ async function saveMonth() {
         total: rows.reduce((sum, r) => sum + calc(r.type, +r.pallets || 0), 0) + extra
       });
     
-    console.log("✅ Erfolgreich gespeichert!");
     await loadMonthListFromFirestore();
     alert('✅ Monat gespeichert!');
   } catch (error) {
     console.error("❌ Speicherfehler:", error);
     alert("❌ Speicherfehler: " + error.message);
+  }
+}
+
+// 🔥 FIX 4: KOMPLETT ÜBERARBEITETE loadSelectedMonth()
+async function loadSelectedMonth() {
+  const month = savedMonths.value;
+  const user = auth.currentUser;
+  if (!month || !user) return;
+
+  try {
+    // Monat setzen
+    monthInput.value = month;
+    
+    // Tabelle leeren
+    tbody.innerHTML = '';
+    
+    // Daten laden
+    const doc = await db.collection('users').doc(user.uid)
+      .collection('months').doc(month).get();
+
+    if (doc.exists) {
+      const data = doc.data();
+      
+      // Extra Amount setzen
+      extraAmount.value = data.extraAmount || '0';
+      
+      // 🔥 FIX: Rows korrekt laden mit richtigen Daten
+      const rows = data.rows || [];
+      
+      // Alle Rows laden (auch wenn sie leer sind)
+      rows.forEach(rowData => {
+        addRow(rowData); // Übergibt die gespeicherten Daten
+      });
+      
+      // Falls keine Rows, 5 leere hinzufügen
+      if (rows.length === 0) {
+        for (let i = 0; i < 5; i++) {
+          addRow();
+        }
+      }
+    } else {
+      extraAmount.value = '0';
+      for (let i = 0; i < 5; i++) {
+        addRow();
+      }
+    }
+    
+    // Berechnungen aktualisieren
+    setTimeout(calculateAll, 100); // Kleiner Delay für DOM-Updates
+    
+  } catch (e) {
+    console.error(e);
+    alert('Laden fehlgeschlagen: ' + e.message);
   }
 }
 
@@ -459,7 +508,7 @@ async function loadMonthListFromFirestore() {
       const data = doc.data();
       const option = document.createElement('option');
       option.value = id;
-      option.textContent = `${id} (${data.count || 0} Schichten, ${data.total || 0}€)`;
+      option.textContent = `${id} (${data.count || 0} Schichten, ${data.total?.toFixed(2) || 0}€)`;
       savedMonths.appendChild(option);
     });
     
@@ -469,34 +518,7 @@ async function loadMonthListFromFirestore() {
   }
 }
 
-async function loadSelectedMonth() {
-  const month = savedMonths.value;
-  const user = auth.currentUser;
-  if (!month || !user) return;
-
-  try {
-    monthInput.value = month;
-    tbody.innerHTML = '';
-
-    const doc = await db.collection('users').doc(user.uid)
-      .collection('months').doc(month).get();
-
-    if (doc.exists) {
-      const data = doc.data();
-      extraAmount.value = data.extraAmount || '0';
-      const rows = data.rows || [];
-      rows.forEach(addRow);
-    } else {
-      extraAmount.value = '0';
-      for (let i = 0; i < 5; i++) addRow();
-    }
-    calculateAll();
-  } catch (e) {
-    console.error(e);
-    alert('Laden fehlgeschlagen');
-  }
-}
-
+// 🔥 FIX 5: ROBUSTER calculateYear() - Läuft immer beim Login
 async function calculateYear() {
   const user = auth.currentUser;
   if (!user) {
@@ -522,7 +544,7 @@ async function calculateYear() {
 }
 
 function updateYearSummary(sum, count) {
-  yearSalary.textContent = sum + ' €';
+  yearSalary.textContent = sum.toFixed(2) + ' €';
   yearShifts.textContent = count;
 }
 
