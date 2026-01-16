@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Arbeitszeiten & Gehaltsrechner</title>
+<title>Arbeitszeiten & Gehaltsrechner (Online)</title>
 
 <style>
 :root{
@@ -17,99 +17,155 @@
 *{box-sizing:border-box}
 body{
   margin:0;
-  font-family:system-ui,sans-serif;
+  font-family:system-ui, sans-serif;
   background:var(--bg);
   color:var(--text);
   padding:16px;
 }
 .container{max-width:1100px;margin:auto;}
+h1,h2{margin:8px 0;}
 .card{
   background:var(--card);
   border-radius:14px;
   padding:16px;
   margin-bottom:16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
 }
-.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:end;}
+.flex{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:end;
+}
+.table-wrapper{overflow-x:auto;}
+table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:700px;
+}
+th,td{padding:10px;text-align:center;}
+th{color:var(--muted);font-weight:500;}
+tr:not(:last-child){border-bottom:1px solid #334155;}
 input,select{
-  width:100%;padding:10px;border-radius:8px;border:none;
-  background:#020617;color:var(--text);
+  width:100%;
+  padding:10px;
+  border-radius:8px;
+  border:none;
+  background:#020617;
+  color:var(--text);
+  font-size:1em;
 }
 button{
-  padding:10px 12px;border-radius:8px;border:none;
-  font-weight:600;cursor:pointer;
+  padding:10px 12px;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+  font-weight:600;
+  font-size:0.95em;
 }
 .primary{background:var(--accent);color:#020617}
 .secondary{background:#334155;color:var(--text)}
 .danger{background:var(--danger);color:white}
 .delete{background:#f59e0b;color:white}
+button:hover{opacity:.85}
 .salary{font-weight:700;color:var(--accent);}
-table{width:100%;border-collapse:collapse;min-width:700px}
-th,td{padding:10px;text-align:center;}
-th{color:var(--muted)}
-tr:not(:last-child){border-bottom:1px solid #334155}
+.summary p{font-size:1.1em;margin:6px 0;}
+#user-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+#extra-amount {flex: 1; min-width: 200px;}
+.extra-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+@media(max-width:700px){
+  h1{font-size:1.4em;}
+  table{font-size:.9em;}
+}
 </style>
 </head>
 
 <body>
 <div class="container">
-<h1>🗓️ Arbeitszeiten & Gehaltsrechner</h1>
+<h1>🗓️ Arbeitszeiten & Gehaltsrechner (Online)</h1>
+
+<div class="card" id="user-bar">
+  <button class="secondary" id="login-google">Mit Google anmelden</button>
+  <button class="secondary" id="login-apple">Mit Apple anmelden</button>
+  <button class="danger" id="logout" style="display:none;">Abmelden</button>
+  <span id="user-info"></span>
+</div>
 
 <div class="card flex">
-  <div>
+  <div style="flex:1;">
     <label>Abrechnungsmonat</label>
     <input type="month" id="month">
   </div>
-  <div>
+  <div id="extra-amount" class="extra-field">
     <label>Sonstiges (€)</label>
-    <input type="number" id="extraAmount" value="0">
+    <input type="number" id="extraAmount" min="0" step="0.01" value="0">
   </div>
   <button class="primary" onclick="saveMonth()">💾 Speichern</button>
   <select id="savedMonths" onchange="loadSelectedMonth()">
     <option value="">📂 Gespeicherte Monate</option>
   </select>
-  <button class="delete" id="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;">🗑️</button>
+  <button class="delete" id="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;">🗑️ Löschen</button>
 </div>
 
 <div class="card">
-<table>
-<thead>
-<tr><th>Datum</th><th>Schicht</th><th>Paletten</th><th>€</th><th></th></tr>
-</thead>
-<tbody id="tbody"></tbody>
-</table>
-<br>
-<button class="primary" onclick="addRow()">➕ Schicht hinzufügen</button>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Schicht</th>
+          <th>Paletten</th>
+          <th>€</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <br>
+  <button class="primary" onclick="addRow()">➕ Schicht hinzufügen</button>
 </div>
 
-<div class="card">
+<div class="card summary">
   <h2>📊 Monatsübersicht</h2>
-  <p>Schichten: <span id="totalShifts">0</span></p>
+  <p>Schichten gesamt: <span id="totalShifts">0</span></p>
   <p>Schicht-Gehalt: <span id="shiftSalary">0 €</span></p>
-  <p><strong>Gesamt: <span id="totalSalary">0 €</span></strong></p>
+  <p><strong>Gesamt (inkl. sonstiges): <span id="totalSalary">0 €</span></strong></p>
 </div>
 
-<div class="card">
+<div class="card summary">
   <h2>📅 Jahresübersicht</h2>
   <p>Schichten Jahr: <span id="yearShifts">0</span></p>
   <p>Gehalt Jahr: <span id="yearSalary">0 €</span></p>
 </div>
+
 </div>
 
-<!-- Firebase -->
+<!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <script>
+// === FIREBASE CONFIG ===
 const firebaseConfig = {
   apiKey: "AIzaSyBkOZNvEpg0OcBkffwtyDm-ar6VAeucYFk",
   authDomain: "arbeitszeit-c3243.firebaseapp.com",
   projectId: "arbeitszeit-c3243",
+  storageBucket: "arbeitszeit-c3243.firebasestorage.app",
+  messagingSenderId: "8215248023",
+  appId: "1:8215248023:web:cf7465987b5cdfa36fbdd2"
 };
+
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+// === DOM ===
 const tbody = document.getElementById("tbody");
 const monthInput = document.getElementById("month");
 const extraAmount = document.getElementById("extraAmount");
@@ -122,8 +178,34 @@ const totalShifts = document.getElementById("totalShifts");
 const yearSalary = document.getElementById("yearSalary");
 const yearShifts = document.getElementById("yearShifts");
 
-auth.signInAnonymously();
+const loginGoogle = document.getElementById("login-google");
+const loginApple = document.getElementById("login-apple");
+const logoutBtn = document.getElementById("logout");
+const userInfoSpan = document.getElementById("user-info");
 
+// === LOGIN ===
+loginGoogle.onclick = async () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  await auth.signInWithPopup(provider);
+};
+loginApple.onclick = async () => {
+  const provider = new firebase.auth.OAuthProvider('apple.com');
+  provider.addScope('email');
+  provider.addScope('name');
+  await auth.signInWithPopup(provider);
+};
+logoutBtn.onclick = () => auth.signOut();
+
+auth.onAuthStateChanged(async user => {
+  if (!user) return;
+  userInfoSpan.textContent = user.email || user.displayName || user.uid;
+  loginGoogle.style.display = loginApple.style.display = "none";
+  logoutBtn.style.display = "inline-block";
+  await loadMonthListFromFirestore();
+  await calculateYear();
+});
+
+// === TABLE ===
 function addRow(data = {}) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
@@ -136,7 +218,7 @@ function addRow(data = {}) {
         <option value="extra" ${data.type==='extra'?'selected':''}>extra</option>
       </select>
     </td>
-    <td><input type="number" value="${data.pallets||''}"></td>
+    <td><input type="number" min="0" value="${data.pallets||''}"></td>
     <td class="salary">0 €</td>
     <td><button class="danger" onclick="this.closest('tr').remove();calculateAll()">✖</button></td>
   `;
@@ -144,6 +226,7 @@ function addRow(data = {}) {
   tbody.appendChild(tr);
 }
 
+// === BERECHNUNG ===
 function round5(v){return Math.ceil(v/5)*5}
 function calc(type,p){
   if(type==='normal')return 45;
@@ -158,13 +241,16 @@ function calculateAll(){
   const start=new Date(y,m-2,21), end=new Date(y,m-1,20);
 
   let sum=0,count=0;
-  [...tbody.children].forEach(r=>{
-    const d=new Date(r.children[0].querySelector('input').value);
-    const t=r.children[1].querySelector('select').value;
-    const p=+r.children[2].querySelector('input').value||0;
-    let s=0;
-    if(d>=start&&d<=end&&t){s=calc(t,p);sum+=s;count++;}
-    r.querySelector(".salary").textContent=s+" €";
+  [...tbody.children].forEach(row=>{
+    const date=new Date(row.children[0].querySelector('input').value);
+    const type=row.children[1].querySelector('select').value;
+    const pallets=+row.children[2].querySelector('input').value||0;
+    let salary=0;
+    if(date>=start && date<=end && type){
+      salary=calc(type,pallets);
+      sum+=salary; count++;
+    }
+    row.querySelector(".salary").textContent=salary+" €";
   });
   const extra=+extraAmount.value||0;
   updateSummary(sum,count,sum+extra);
@@ -176,64 +262,82 @@ function updateSummary(sum,count,total){
   totalShifts.textContent=count;
 }
 
+// === 🔧 FIX: NUR GÜLTIGE SCHICHTEN SPEICHERN ===
 async function saveMonth(){
   const user=auth.currentUser;
-  if(!user||!monthInput.value)return;
+  if(!user||!monthInput.value) return alert("Monat wählen!");
 
   const [y,m]=monthInput.value.split('-').map(Number);
   const start=new Date(y,m-2,21), end=new Date(y,m-1,20);
 
-  const rows=[...tbody.children].map(r=>{
-    const d=new Date(r.children[0].querySelector('input').value);
-    if(!(d>=start&&d<=end))return null;
-    return {
-      date:r.children[0].querySelector('input').value,
-      type:r.children[1].querySelector('select').value,
-      pallets:r.children[2].querySelector('input').value
-    };
-  }).filter(r=>r&&r.type);
+  const rows=[...tbody.children].map(row=>{
+    const dateInput=row.children[0].querySelector('input');
+    const type=row.children[1].querySelector('select').value;
+    const pallets=row.children[2].querySelector('input').value;
+    if(!dateInput.value||!type) return null;
+    const date=new Date(dateInput.value);
+    if(date<start||date>end) return null;
+    return {date:dateInput.value,type,pallets};
+  }).filter(Boolean);
 
   const extra=+extraAmount.value||0;
-  const total=rows.reduce((s,r)=>s+calc(r.type,+r.pallets||0),0)+extra;
+  const shiftTotal=rows.reduce((s,r)=>s+calc(r.type,+r.pallets||0),0);
 
   await db.collection('users').doc(user.uid)
     .collection('months').doc(monthInput.value)
-    .set({rows,extra,total,count:rows.length,updated:new Date()});
+    .set({
+      rows,
+      extraAmount:extra,
+      count:rows.length,
+      shiftTotal,
+      total:shiftTotal+extra,
+      updated:firebase.firestore.FieldValue.serverTimestamp()
+    });
 
-  await loadMonthList();
+  await loadMonthListFromFirestore();
   await calculateYear();
   alert("✅ Monat gespeichert");
 }
 
+// === LADEN / LÖSCHEN / LISTEN ===
 async function loadSelectedMonth(){
   const user=auth.currentUser;
-  if(!user||!savedMonths.value)return;
+  if(!user||!savedMonths.value) return;
   tbody.innerHTML='';
   const doc=await db.collection('users').doc(user.uid)
     .collection('months').doc(savedMonths.value).get();
-  doc.data().rows.forEach(addRow);
-  extraAmount.value=doc.data().extra||0;
-  while(tbody.children.length<5)addRow();
+  const data=doc.data();
+  extraAmount.value=data.extraAmount||0;
+  data.rows.forEach(addRow);
+  while(tbody.children.length<5) addRow();
   calculateAll();
 }
 
-async function loadMonthList(){
+async function deleteSelectedMonth(){
   const user=auth.currentUser;
-  if(!user)return;
+  if(!user||!savedMonths.value) return;
+  await db.collection('users').doc(user.uid)
+    .collection('months').doc(savedMonths.value).delete();
+  savedMonths.value='';
+  await loadMonthListFromFirestore();
+  await calculateYear();
+}
+
+async function loadMonthListFromFirestore(){
+  const user=auth.currentUser;
   savedMonths.innerHTML='<option value="">📂 Gespeicherte Monate</option>';
   const snap=await db.collection('users').doc(user.uid)
     .collection('months').orderBy('updated','desc').get();
-  snap.forEach(d=>{
+  snap.forEach(doc=>{
     const o=document.createElement('option');
-    o.value=d.id;
-    o.textContent=`${d.id} (${d.data().count} Schichten, ${d.data().total}€)`;
+    o.value=doc.id;
+    o.textContent=`${doc.id} (${doc.data().count} Schichten, ${doc.data().total}€)`;
     savedMonths.appendChild(o);
   });
 }
 
 async function calculateYear(){
   const user=auth.currentUser;
-  if(!user)return;
   let sum=0,count=0;
   const snap=await db.collection('users').doc(user.uid).collection('months').get();
   snap.forEach(d=>{sum+=d.data().total||0;count+=d.data().count||0});
@@ -241,7 +345,8 @@ async function calculateYear(){
   yearShifts.textContent=count;
 }
 
-for(let i=0;i<5;i++)addRow();
+// INIT
+for(let i=0;i<5;i++) addRow();
 </script>
 </body>
 </html>
