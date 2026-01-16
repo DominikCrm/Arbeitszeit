@@ -102,13 +102,13 @@ button:hover{opacity:.85}
   </div>
   <div id="extra-amount" class="extra-field">
     <label>Sonstiges (€)</label>
-    <input type="number" id="extraAmount" min="0" step="0.01" value="0">
+    <input type="number" id="extraAmount" min="0" step="0.01" value="0" placeholder="z.B. 50.00">
   </div>
   <button class="primary" onclick="saveMonth()">💾 Speichern</button>
   <select id="savedMonths" onchange="loadSelectedMonth()">
     <option value="">📂 Gespeicherte Monate</option>
   </select>
-  <button class="delete" id="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;">🗑️ Löschen</button>
+  <button class="delete" id="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;" title="Ausgewählten Monat löschen">🗑️ Löschen</button>
 </div>
 
 <div class="card">
@@ -165,188 +165,340 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// === DOM ===
+// === DOM-Elemente ===
 const tbody = document.getElementById("tbody");
 const monthInput = document.getElementById("month");
 const extraAmount = document.getElementById("extraAmount");
 const savedMonths = document.getElementById("savedMonths");
 const deleteMonthBtn = document.getElementById("deleteMonth");
-
 const totalSalary = document.getElementById("totalSalary");
 const shiftSalary = document.getElementById("shiftSalary");
 const totalShifts = document.getElementById("totalShifts");
 const yearSalary = document.getElementById("yearSalary");
 const yearShifts = document.getElementById("yearShifts");
-
 const loginGoogle = document.getElementById("login-google");
 const loginApple = document.getElementById("login-apple");
 const logoutBtn = document.getElementById("logout");
 const userInfoSpan = document.getElementById("user-info");
 
-// === LOGIN ===
+// === Login / Logout ===
 loginGoogle.onclick = async () => {
   const provider = new firebase.auth.GoogleAuthProvider();
-  await auth.signInWithPopup(provider);
+  try { await auth.signInWithPopup(provider); } catch(e) { alert("Google Login Fehler: " + e.message); }
 };
+
 loginApple.onclick = async () => {
   const provider = new firebase.auth.OAuthProvider('apple.com');
-  provider.addScope('email');
-  provider.addScope('name');
-  await auth.signInWithPopup(provider);
+  provider.addScope('email'); provider.addScope('name');
+  try { await auth.signInWithPopup(provider); } catch(e) { alert("Apple Login Fehler: " + e.message); }
 };
+
 logoutBtn.onclick = () => auth.signOut();
 
-auth.onAuthStateChanged(async user => {
-  if (!user) return;
-  userInfoSpan.textContent = user.email || user.displayName || user.uid;
-  loginGoogle.style.display = loginApple.style.display = "none";
-  logoutBtn.style.display = "inline-block";
-  await loadMonthListFromFirestore();
-  await calculateYear();
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    userInfoSpan.textContent = (user.email || user.displayName || user.uid).slice(0,20) + "...";
+    logoutBtn.style.display = "inline-block";
+    loginGoogle.style.display = "none";
+    loginApple.style.display = "none";
+    await loadMonthListFromFirestore();
+    await calculateYear();
+  } else {
+    userInfoSpan.textContent = "Nicht angemeldet";
+    logoutBtn.style.display = "none";
+    loginGoogle.style.display = "inline-block";
+    loginApple.style.display = "inline-block";
+    savedMonths.innerHTML = '<option value="">📂 Gespeicherte Monate</option>';
+    deleteMonthBtn.style.display = "none";
+    tbody.innerHTML = ""; extraAmount.value = "0"; monthInput.value = "";
+    for(let i=0;i<5;i++) addRow({});
+    updateSummary(0, 0, 0); updateYearSummary(0, 0);
+  }
 });
 
-// === TABLE ===
 function addRow(data = {}) {
   const tr = document.createElement("tr");
+  
+  // 1. HTML mit geladenen Daten setzen
   tr.innerHTML = `
-    <td><input type="date" value="${data.date||''}"></td>
+    <td><input type="date" value="${data.date || ''}"></td>
     <td>
       <select>
         <option value=""></option>
-        <option value="normal" ${data.type==='normal'?'selected':''}>normal</option>
-        <option value="doppel" ${data.type==='doppel'?'selected':''}>doppel</option>
-        <option value="extra" ${data.type==='extra'?'selected':''}>extra</option>
+        <option value="normal" ${data.type === 'normal' ? 'selected' : ''}>normal</option>
+        <option value="doppel" ${data.type === 'doppel' ? 'selected' : ''}>doppel</option>
+        <option value="extra" ${data.type === 'extra' ? 'selected' : ''}>extra</option>
       </select>
     </td>
-    <td><input type="number" min="0" value="${data.pallets||''}"></td>
+    <td><input type="number" min="0" value="${data.pallets || ''}"></td>
     <td class="salary">0 €</td>
-    <td><button class="danger" onclick="this.closest('tr').remove();calculateAll()">✖</button></td>
+    <td><button class="danger" onclick="this.closest('tr').remove(); calculateAll();">✖</button></td>
   `;
-  tr.querySelectorAll("input,select").forEach(e=>e.oninput=calculateAll);
+  
+  const typeSelect = tr.querySelector("select");
+  const palletsInput = tr.querySelector('input[type="number"]');
+  
+  // Event-Handler
+  const updatePalletsField = () => {
+    if (typeSelect.value === 'extra') {
+      palletsInput.disabled = false;
+      palletsInput.style.background = '#020617';
+    } else {
+      palletsInput.disabled = true;
+      palletsInput.style.background = '#334155';
+      // ✅ PALLETS WERT BEI LADEN BEHALTEN! Nur neue Rows leeren
+      if (!data.date) palletsInput.value = '';
+    }
+    calculateAll();
+  };
+  
+  // Event-Handler setzen
+  typeSelect.onchange = updatePalletsField;
+  
+  // Initialzustand VOR Event-Handlers setzen
+  const currentType = typeSelect.value;
+  if (currentType === 'extra') {
+    palletsInput.disabled = false;
+    palletsInput.style.background = '#020617';
+  } else {
+    palletsInput.disabled = true;
+    palletsInput.style.background = '#334155';
+  }
+  
+  // Input Events
+  tr.querySelectorAll("input").forEach(input => {
+    input.oninput = calculateAll;
+  });
+  
   tbody.appendChild(tr);
 }
 
-// === BERECHNUNG ===
-function round5(v){return Math.ceil(v/5)*5}
-function calc(type,p){
-  if(type==='normal')return 45;
-  if(type==='doppel')return 90;
-  if(type==='extra')return round5(45+Math.max(0,p-17)*3.3);
+// === UNVERÄNDERT: Berechnungsfunktionen ===
+function round5(v) { return Math.ceil(v / 5) * 5; }
+function calc(type, p) {
+  if (type === 'normal') return 45;
+  if (type === 'doppel') return 90;
+  if (type === 'extra') return round5(45 + Math.max(0, p - 17) * 3.3);
   return 0;
 }
+function parseDate(dateStr) { if (!dateStr) return null; return new Date(dateStr); }
 
-function calculateAll(){
-  if(!monthInput.value){updateSummary(0,0,0);return;}
-  const [y,m]=monthInput.value.split('-').map(Number);
-  const start=new Date(y,m-2,21), end=new Date(y,m-1,20);
+function calculateAll() {
+  const month = monthInput.value;
+  if (!month) { updateSummary(0, 0, 0); return; }
+  
+  const [y, m] = month.split('-').map(Number);
+  const start = new Date(y, m - 2, 21);
+  const end = new Date(y, m - 1, 20);
 
-  let sum=0,count=0;
-  [...tbody.children].forEach(row=>{
-    const date=new Date(row.children[0].querySelector('input').value);
-    const type=row.children[1].querySelector('select').value;
-    const pallets=+row.children[2].querySelector('input').value||0;
-    let salary=0;
-    if(date>=start && date<=end && type){
-      salary=calc(type,pallets);
-      sum+=salary; count++;
+  let shiftSum = 0, count = 0;
+  Array.from(tbody.children).forEach(row => {
+    const dateInput = row.children[0].querySelector('input');
+    const typeSelect = row.children[1].querySelector('select');
+    const palletsInput = row.children[2].querySelector('input');
+    
+    const dateStr = dateInput.value;
+    const type = typeSelect.value;
+    const pallets = +palletsInput.value || 0;
+    const date = parseDate(dateStr);
+    
+    let salary = 0;
+    if (date && type) {
+      if (type !== 'extra' && palletsInput.value) palletsInput.value = '';
+      if (type === 'extra' && pallets < 0) palletsInput.value = 0;
+      if (date >= start && date <= end) {
+        salary = calc(type, pallets);
+        shiftSum += salary;
+        count++;
+      }
     }
-    row.querySelector(".salary").textContent=salary+" €";
+    row.querySelector(".salary").textContent = salary + " €";
   });
-  const extra=+extraAmount.value||0;
-  updateSummary(sum,count,sum+extra);
+
+  const extra = +extraAmount.value || 0;
+  updateSummary(shiftSum, count, shiftSum + extra);
 }
 
-function updateSummary(sum,count,total){
-  shiftSalary.textContent=sum+" €";
-  totalSalary.textContent=total+" €";
-  totalShifts.textContent=count;
+function updateSummary(shiftSum, count, total) {
+  shiftSalary.textContent = shiftSum + " €";
+  totalSalary.textContent = total + " €";
+  totalShifts.textContent = count;
 }
 
-// === 🔧 FIX: NUR GÜLTIGE SCHICHTEN SPEICHERN ===
-async function saveMonth(){
-  const user=auth.currentUser;
-  if(!user||!monthInput.value) return alert("Monat wählen!");
+// Event Listeners
+monthInput.onchange = calculateAll;
+extraAmount.oninput = calculateAll;
 
-  const [y,m]=monthInput.value.split('-').map(Number);
-  const start=new Date(y,m-2,21), end=new Date(y,m-1,20);
+async function loadSelectedMonth() {
+  const month = savedMonths.value;
+  const user = auth.currentUser;
+  if (!month || !user) return;
 
-  const rows=[...tbody.children].map(row=>{
-    const dateInput=row.children[0].querySelector('input');
-    const type=row.children[1].querySelector('select').value;
-    const pallets=row.children[2].querySelector('input').value;
-    if(!dateInput.value||!type) return null;
-    const date=new Date(dateInput.value);
-    if(date<start||date>end) return null;
-    return {date:dateInput.value,type,pallets};
-  }).filter(Boolean);
+  monthInput.value = month;
+  tbody.innerHTML = '';
 
-  const extra=+extraAmount.value||0;
-  const shiftTotal=rows.reduce((s,r)=>s+calc(r.type,+r.pallets||0),0);
+  try {
+    const doc = await db.collection('users').doc(user.uid)
+      .collection('months').doc(month).get();
 
-  await db.collection('users').doc(user.uid)
-    .collection('months').doc(monthInput.value)
-    .set({
-      rows,
-      extraAmount:extra,
-      count:rows.length,
-      shiftTotal,
-      total:shiftTotal+extra,
-      updated:firebase.firestore.FieldValue.serverTimestamp()
+    if (doc.exists) {
+      const data = doc.data();
+      extraAmount.value = data.extraAmount || '0';
+      
+      const rows = data.rows || [];
+      rows.forEach(rowData => {
+        if (rowData.date && rowData.type) {
+          addRow(rowData);
+        }
+      });
+      
+      while (tbody.children.length < 5) {
+        addRow({});
+      }
+      
+      setTimeout(calculateAll, 300);
+    } else {
+      extraAmount.value = '0';
+      for (let i = 0; i < 5; i++) addRow({});
+      calculateAll();
+    }
+  } catch(e) {
+    console.error(e);
+    alert('Laden fehlgeschlagen: ' + e.message);
+  }
+}
+
+async function saveMonth() {
+  const month = monthInput.value;
+  const user = auth.currentUser;
+  if (!month) return alert('❌ Bitte Monat wählen!');
+  if (!user) return alert('❌ Bitte zuerst anmelden!');
+
+  const [y, m] = month.split('-').map(Number);
+  const start = new Date(y, m - 2, 21);
+  const end   = new Date(y, m - 1, 20);
+
+  // 🔽 Alle Rows sammeln
+  const allRows = Array.from(tbody.children).map(row => {
+    const dateInput = row.children[0].querySelector('input');
+    const typeSelect = row.children[1].querySelector('select');
+    const palletsInput = row.children[2].querySelector('input');
+
+    return {
+      date: dateInput.value || '',
+      type: typeSelect.value || '',
+      pallets: palletsInput.value || ''
+    };
+  }).filter(r => r.date && r.type);
+
+  const extra = +extraAmount.value || 0;
+  if (allRows.length === 0 && extra === 0)
+    return alert('❌ Keine Daten zum Speichern!');
+
+  // ✅ NUR gültige Schichten im Abrechnungszeitraum
+  const validRows = allRows.filter(r => {
+    const d = new Date(r.date);
+    return d >= start && d <= end;
+  });
+
+  const shiftTotal = validRows.reduce(
+    (sum, r) => sum + calc(r.type, +r.pallets || 0), 0
+  );
+
+  try {
+    await db.collection('users')
+      .doc(user.uid)
+      .collection('months')
+      .doc(month)
+      .set({
+        rows: allRows,                 // 🔹 alle Rows bleiben gespeichert
+        extraAmount: extra,
+        updated: firebase.firestore.FieldValue.serverTimestamp(),
+
+        // 🔹 AB HIER KORRIGIERT
+        count: validRows.length,
+        shiftTotal: shiftTotal,
+        total: shiftTotal + extra
+      });
+
+    await loadMonthListFromFirestore();
+    await calculateYear();
+    alert('✅ Monat gespeichert!');
+  } catch (error) {
+    console.error("❌ Speicherfehler:", error);
+    alert("❌ Speicherfehler: " + error.message);
+  }
+}
+
+async function deleteSelectedMonth() {
+  const month = savedMonths.value, user = auth.currentUser;
+  if (!month) return alert('Bitte Monat auswählen!');
+  if (!user) return alert('Bitte anmelden!');
+  if (!confirm(`🗑️ Wirklich "${month}" löschen?`)) return;
+
+  try {
+    await db.collection('users').doc(user.uid).collection('months').doc(month).delete();
+    alert('✅ Monat gelöscht!');
+    savedMonths.value = ''; deleteMonthBtn.style.display = 'none';
+    monthInput.value = ''; extraAmount.value = '0'; tbody.innerHTML = '';
+    for (let i = 0; i < 5; i++) addRow({});
+    calculateAll();
+    await loadMonthListFromFirestore();
+    await calculateYear();
+  } catch (e) {
+    console.error(e);
+    alert("❌ Löschen fehlgeschlagen: " + e.message);
+  }
+}
+
+async function loadMonthListFromFirestore() {
+  const user = auth.currentUser;
+  if (!user) return;
+  savedMonths.innerHTML = '<option value="">📂 Gespeicherte Monate</option>';
+  deleteMonthBtn.style.display = 'none';
+  
+  try {
+    const snapshot = await db.collection('users').doc(user.uid)
+      .collection('months').orderBy('updated', 'desc').get();
+    snapshot.docs.forEach(doc => {
+      const id = doc.id, data = doc.data();
+      const option = document.createElement('option');
+      option.value = id;
+      option.textContent = `${id} (${data.count || 0} Schichten, ${data.total?.toFixed(2) || 0}€)`;
+      savedMonths.appendChild(option);
     });
-
-  await loadMonthListFromFirestore();
-  await calculateYear();
-  alert("✅ Monat gespeichert");
+    deleteMonthBtn.style.display = snapshot.size > 0 ? 'inline-block' : 'none';
+  } catch (e) { console.error(e); }
 }
 
-// === LADEN / LÖSCHEN / LISTEN ===
-async function loadSelectedMonth(){
-  const user=auth.currentUser;
-  if(!user||!savedMonths.value) return;
-  tbody.innerHTML='';
-  const doc=await db.collection('users').doc(user.uid)
-    .collection('months').doc(savedMonths.value).get();
-  const data=doc.data();
-  extraAmount.value=data.extraAmount||0;
-  data.rows.forEach(addRow);
-  while(tbody.children.length<5) addRow();
-  calculateAll();
+async function calculateYear() {
+  const user = auth.currentUser;
+  if (!user) { updateYearSummary(0, 0); return; }
+  try {
+    const snapshot = await db.collection('users').doc(user.uid).collection('months').get();
+    let sum = 0, count = 0;
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      sum += data.total || 0;
+      count += data.count || 0;
+    });
+    updateYearSummary(sum, count);
+  } catch (e) {
+    console.error(e);
+    updateYearSummary(0, 0);
+  }
 }
 
-async function deleteSelectedMonth(){
-  const user=auth.currentUser;
-  if(!user||!savedMonths.value) return;
-  await db.collection('users').doc(user.uid)
-    .collection('months').doc(savedMonths.value).delete();
-  savedMonths.value='';
-  await loadMonthListFromFirestore();
-  await calculateYear();
+function updateYearSummary(sum, count) {
+  yearSalary.textContent = sum.toFixed(2) + ' €';
+  yearShifts.textContent = count;
 }
 
-async function loadMonthListFromFirestore(){
-  const user=auth.currentUser;
-  savedMonths.innerHTML='<option value="">📂 Gespeicherte Monate</option>';
-  const snap=await db.collection('users').doc(user.uid)
-    .collection('months').orderBy('updated','desc').get();
-  snap.forEach(doc=>{
-    const o=document.createElement('option');
-    o.value=doc.id;
-    o.textContent=`${doc.id} (${doc.data().count} Schichten, ${doc.data().total}€)`;
-    savedMonths.appendChild(o);
-  });
-}
+savedMonths.onchange = () => deleteMonthBtn.style.display = savedMonths.value ? 'inline-block' : 'none';
 
-async function calculateYear(){
-  const user=auth.currentUser;
-  let sum=0,count=0;
-  const snap=await db.collection('users').doc(user.uid).collection('months').get();
-  snap.forEach(d=>{sum+=d.data().total||0;count+=d.data().count||0});
-  yearSalary.textContent=sum+" €";
-  yearShifts.textContent=count;
-}
-
-// INIT
-for(let i=0;i<5;i++) addRow();
+// Initialisierung
+for (let i = 0; i < 5; i++) addRow({});
+calculateAll();
 </script>
 </body>
 </html>
