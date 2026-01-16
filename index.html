@@ -378,7 +378,7 @@ async function saveMonth() {
   const start = new Date(y, m - 2, 21);
   const end   = new Date(y, m - 1, 20);
 
-  // 🔽 Alle Rows sammeln
+  // 🔹 Alle eingegebenen Schichten erfassen
   const allRows = Array.from(tbody.children).map(row => {
     const dateInput = row.children[0].querySelector('input');
     const typeSelect = row.children[1].querySelector('select');
@@ -392,14 +392,15 @@ async function saveMonth() {
   }).filter(r => r.date && r.type);
 
   const extra = +extraAmount.value || 0;
-  if (allRows.length === 0 && extra === 0)
-    return alert('❌ Keine Daten zum Speichern!');
 
-  // ✅ NUR gültige Schichten im Abrechnungszeitraum
+  // ✅ NUR Schichten im Abrechnungszeitraum
   const validRows = allRows.filter(r => {
     const d = new Date(r.date);
     return d >= start && d <= end;
   });
+
+  if (validRows.length === 0 && extra === 0)
+    return alert('❌ Keine gültigen Daten für diesen Monat!');
 
   const shiftTotal = validRows.reduce(
     (sum, r) => sum + calc(r.type, +r.pallets || 0), 0
@@ -411,11 +412,11 @@ async function saveMonth() {
       .collection('months')
       .doc(month)
       .set({
-        rows: allRows,                 // 🔹 alle Rows bleiben gespeichert
+        // 🔥 ENTSCHEIDENDER FIX
+        rows: validRows,
+
         extraAmount: extra,
         updated: firebase.firestore.FieldValue.serverTimestamp(),
-
-        // 🔹 AB HIER KORRIGIERT
         count: validRows.length,
         shiftTotal: shiftTotal,
         total: shiftTotal + extra
