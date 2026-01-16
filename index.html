@@ -374,35 +374,34 @@ async function saveMonth() {
   if (!month) return alert('❌ Bitte Monat wählen!');
   if (!user) return alert('❌ Bitte zuerst anmelden!');
 
+  // 🔑 Abrechnungszeitraum
   const [y, m] = month.split('-').map(Number);
   const start = new Date(y, m - 2, 21);
   const end   = new Date(y, m - 1, 20);
 
-  // 🔽 Alle Rows erfassen
-  const allRows = Array.from(tbody.children).map(row => {
+  // ✅ NUR gültige Schichten sammeln
+  const rows = Array.from(tbody.children).map(row => {
     const dateInput = row.children[0].querySelector('input');
     const typeSelect = row.children[1].querySelector('select');
     const palletsInput = row.children[2].querySelector('input');
 
+    if (!dateInput.value || !typeSelect.value) return null;
+
+    const date = new Date(dateInput.value);
+    if (date < start || date > end) return null; // 🔥 ENTSCHEIDENDER FIX
+
     return {
-      date: dateInput.value || '',
-      type: typeSelect.value || '',
+      date: dateInput.value,
+      type: typeSelect.value,
       pallets: palletsInput.value || ''
     };
-  }).filter(r => r.date && r.type);
+  }).filter(Boolean);
 
   const extra = +extraAmount.value || 0;
+  if (rows.length === 0 && extra === 0)
+    return alert('❌ Keine gültigen Daten für diesen Monat!');
 
-  // ✅ NUR Schichten im Abrechnungszeitraum speichern
-  const validRows = allRows.filter(r => {
-    const d = new Date(r.date);
-    return d >= start && d <= end;
-  });
-
-  if (validRows.length === 0 && extra === 0)
-    return alert('❌ Keine gültigen Daten im Abrechnungszeitraum!');
-
-  const shiftTotal = validRows.reduce(
+  const shiftTotal = rows.reduce(
     (sum, r) => sum + calc(r.type, +r.pallets || 0), 0
   );
 
@@ -412,11 +411,11 @@ async function saveMonth() {
       .collection('months')
       .doc(month)
       .set({
-        rows: validRows,              // 🔥 HIER IST DER FIX
+        rows,                        // 🔒 nur gültige Schichten
         extraAmount: extra,
         updated: firebase.firestore.FieldValue.serverTimestamp(),
-        count: validRows.length,
-        shiftTotal: shiftTotal,
+        count: rows.length,
+        shiftTotal,
         total: shiftTotal + extra
       });
 
