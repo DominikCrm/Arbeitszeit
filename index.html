@@ -14,16 +14,21 @@
   --accent:#38bdf8;
   --danger:#ef4444;
 }
+
 *{box-sizing:border-box}
+
 body{
   margin:0;
-  font-family:system-ui, sans-serif;
+  font-family:system-ui,sans-serif;
   background:var(--bg);
   color:var(--text);
   padding:16px;
 }
+
 .container{max-width:1100px;margin:auto;}
+
 h1,h2{margin:8px 0;}
+
 .card{
   background:var(--card);
   border-radius:14px;
@@ -31,21 +36,30 @@ h1,h2{margin:8px 0;}
   margin-bottom:16px;
   box-shadow:0 10px 30px rgba(0,0,0,.35);
 }
+
 .flex{
   display:flex;
   gap:10px;
   flex-wrap:wrap;
   align-items:end;
 }
+
 .table-wrapper{overflow-x:auto;}
+
 table{
   width:100%;
   border-collapse:collapse;
   min-width:700px;
 }
+
 th,td{padding:10px;text-align:center;}
+
 th{color:var(--muted);font-weight:500;}
-tr:not(:last-child){border-bottom:1px solid #334155;}
+
+tr:not(:last-child){
+  border-bottom:1px solid #334155;
+}
+
 input,select{
   width:100%;
   padding:10px;
@@ -55,28 +69,51 @@ input,select{
   color:var(--text);
   font-size:1em;
 }
+
 button{
   padding:10px 12px;
   border-radius:8px;
   border:none;
   cursor:pointer;
   font-weight:600;
-  font-size:0.95em;
+  font-size:.95em;
 }
+
 .primary{background:var(--accent);color:#020617}
 .secondary{background:#334155;color:var(--text)}
 .danger{background:var(--danger);color:white}
 .delete{background:#f59e0b;color:white}
+
 button:hover{opacity:.85}
-.salary{font-weight:700;color:var(--accent);}
-.summary p{font-size:1.1em;margin:6px 0;}
-#user-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-#extra-amount {flex: 1; min-width: 200px;}
-.extra-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+
+.salary{
+  font-weight:700;
+  color:var(--accent);
 }
+
+.summary p{
+  font-size:1.1em;
+  margin:6px 0;
+}
+
+#user-bar{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+#extra-amount{
+  flex:1;
+  min-width:200px;
+}
+
+.extra-field{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
 @media(max-width:700px){
   h1{font-size:1.4em;}
   table{font-size:.9em;}
@@ -85,35 +122,66 @@ button:hover{opacity:.85}
 </head>
 
 <body>
+
 <div class="container">
+
 <h1>🗓️ Arbeitszeiten & Gehaltsrechner (Online)</h1>
 
 <div class="card" id="user-bar">
-  <button class="secondary" id="login-google">Mit Google anmelden</button>
-  <button class="secondary" id="login-apple">Mit Apple anmelden</button>
-  <button class="danger" id="logout" style="display:none;">Abmelden</button>
+
+  <button class="secondary" id="login-google">
+    Mit Google anmelden
+  </button>
+
+  <button class="secondary" id="login-apple">
+    Mit Apple anmelden
+  </button>
+
+  <button class="danger" id="logout" style="display:none;">
+    Abmelden
+  </button>
+
   <span id="user-info"></span>
+
 </div>
 
+
 <div class="card flex">
+
   <div style="flex:1;">
     <label>Abrechnungsmonat</label>
     <input type="month" id="month">
   </div>
+
   <div id="extra-amount" class="extra-field">
     <label>Sonstiges (€)</label>
-    <input type="number" id="extraAmount" min="0" step="0.01" value="0">
+    <input type="number" id="extraAmount"
+           min="0" step="0.01" value="0">
   </div>
-  <button class="primary" onclick="saveMonth()">💾 Speichern</button>
+
+  <button class="primary" onclick="saveMonth()">
+    💾 Speichern
+  </button>
+
   <select id="savedMonths" onchange="loadSelectedMonth()">
     <option value="">📂 Gespeicherte Monate</option>
   </select>
-  <button class="delete" id="deleteMonth" onclick="deleteSelectedMonth()" style="display:none;">🗑️ Löschen</button>
+
+  <button class="delete" id="deleteMonth"
+          onclick="deleteSelectedMonth()"
+          style="display:none;">
+    🗑️ Monat löschen
+  </button>
+
 </div>
 
+
 <div class="card">
+
   <div class="table-wrapper">
+
     <table>
+
       <thead>
         <tr>
           <th>Datum</th>
@@ -123,35 +191,74 @@ button:hover{opacity:.85}
           <th></th>
         </tr>
       </thead>
+
       <tbody id="tbody"></tbody>
+
     </table>
+
   </div>
+
   <br>
-  <button class="primary" onclick="addRow()">➕ Schicht hinzufügen</button>
+
+  <button class="primary" onclick="addRow()">
+    ➕ Schicht hinzufügen
+  </button>
+
 </div>
 
+
 <div class="card summary">
+
   <h2>📊 Monatsübersicht</h2>
-  <p>Schichten gesamt: <span id="totalShifts">0</span></p>
-  <p>Schicht-Gehalt: <span id="shiftSalary">0 €</span></p>
-  <p><strong>Gesamt (inkl. sonstiges): <span id="totalSalary">0 €</span></strong></p>
+
+  <p>Schichten gesamt:
+    <span id="totalShifts">0</span>
+  </p>
+
+  <p>Schicht-Gehalt:
+    <span id="shiftSalary">0 €</span>
+  </p>
+
+  <p>
+    <strong>
+      Gesamt (inkl. sonstiges):
+      <span id="totalSalary">0 €</span>
+    </strong>
+  </p>
+
 </div>
+
 
 <div class="card summary">
+
   <h2>📅 Jahresübersicht</h2>
-  <p>Schichten Jahr: <span id="yearShifts">0</span></p>
-  <p>Gehalt Jahr: <span id="yearSalary">0 €</span></p>
-</div>
+
+  <p>Schichten Jahr:
+    <span id="yearShifts">0</span>
+  </p>
+
+  <p>Gehalt Jahr:
+    <span id="yearSalary">0 €</span>
+  </p>
 
 </div>
 
-<!-- Firebase SDKs -->
+</div>
+
+
+<!-- FIREBASE SDK -->
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
+
 <script>
-// === FIREBASE CONFIG ===
+
+// =====================================
+// FIREBASE CONFIG
+// =====================================
+
 const firebaseConfig = {
   apiKey: "AIzaSyBkOZNvEpg0OcBkffwtyDm-ar6VAeucYFk",
   authDomain: "arbeitszeit-c3243.firebaseapp.com",
@@ -162,191 +269,574 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
+
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// === DOM ===
+
+// =====================================
+// DOM ELEMENTS
+// =====================================
+
 const tbody = document.getElementById("tbody");
+
 const monthInput = document.getElementById("month");
 const extraAmount = document.getElementById("extraAmount");
+
 const savedMonths = document.getElementById("savedMonths");
 const deleteMonthBtn = document.getElementById("deleteMonth");
 
 const totalSalary = document.getElementById("totalSalary");
 const shiftSalary = document.getElementById("shiftSalary");
 const totalShifts = document.getElementById("totalShifts");
+
 const yearSalary = document.getElementById("yearSalary");
 const yearShifts = document.getElementById("yearShifts");
 
 const loginGoogle = document.getElementById("login-google");
 const loginApple = document.getElementById("login-apple");
 const logoutBtn = document.getElementById("logout");
+
 const userInfoSpan = document.getElementById("user-info");
 
-// === LOGIN ===
+
+// =====================================
+// LOGIN
+// =====================================
+
 loginGoogle.onclick = async () => {
+
   const provider = new firebase.auth.GoogleAuthProvider();
+
   await auth.signInWithPopup(provider);
+
 };
+
 loginApple.onclick = async () => {
+
   const provider = new firebase.auth.OAuthProvider('apple.com');
+
   provider.addScope('email');
   provider.addScope('name');
+
   await auth.signInWithPopup(provider);
+
 };
+
 logoutBtn.onclick = () => auth.signOut();
 
+
 auth.onAuthStateChanged(async user => {
-  if (!user) return;
-  userInfoSpan.textContent = user.email || user.displayName || user.uid;
-  loginGoogle.style.display = loginApple.style.display = "none";
+
+  if (!user) {
+
+    userInfoSpan.textContent = "";
+
+    loginGoogle.style.display = "inline-block";
+    loginApple.style.display = "inline-block";
+
+    logoutBtn.style.display = "none";
+
+    deleteMonthBtn.style.display = "none";
+
+    return;
+  }
+
+  userInfoSpan.textContent =
+    user.email || user.displayName || user.uid;
+
+  loginGoogle.style.display = "none";
+  loginApple.style.display = "none";
+
   logoutBtn.style.display = "inline-block";
+
   await loadMonthListFromFirestore();
   await calculateYear();
+
 });
 
-// === TABLE ===
+
+// =====================================
+// TABLE
+// =====================================
+
 function addRow(data = {}) {
+
   const tr = document.createElement("tr");
+
   tr.innerHTML = `
-    <td><input type="date" value="${data.date||''}"></td>
+
+    <td>
+      <input type="date" value="${data.date || ''}">
+    </td>
+
     <td>
       <select>
+
         <option value=""></option>
-        <option value="normal" ${data.type==='normal'?'selected':''}>normal</option>
-        <option value="doppel" ${data.type==='doppel'?'selected':''}>doppel</option>
-        <option value="extra" ${data.type==='extra'?'selected':''}>extra</option>
+
+        <option value="normal"
+          ${data.type === 'normal' ? 'selected' : ''}>
+          normal
+        </option>
+
+        <option value="doppel"
+          ${data.type === 'doppel' ? 'selected' : ''}>
+          doppel
+        </option>
+
+        <option value="extra"
+          ${data.type === 'extra' ? 'selected' : ''}>
+          extra
+        </option>
+
       </select>
     </td>
-    <td><input type="number" min="0" value="${data.pallets||''}"></td>
+
+    <td>
+      <input type="number"
+             min="0"
+             value="${data.pallets || ''}">
+    </td>
+
     <td class="salary">0 €</td>
-    <td><button class="danger" onclick="this.closest('tr').remove();calculateAll()">✖</button></td>
+
+    <td>
+      <button class="danger"
+        onclick="this.closest('tr').remove();calculateAll()">
+        ✖
+      </button>
+    </td>
+
   `;
-  tr.querySelectorAll("input,select").forEach(e=>e.oninput=calculateAll);
-  tbody.appendChild(tr);
-}
 
-// === BERECHNUNG ===
-function round5(v){return Math.ceil(v/5)*5}
-function calc(type,p){
-  if(type==='normal')return 45;
-  if(type==='doppel')return 90;
-  if(type==='extra')return round5(45+Math.max(0,p-17)*3.3);
-  return 0;
-}
-
-function calculateAll(){
-  if(!monthInput.value){updateSummary(0,0,0);return;}
-  const [y,m]=monthInput.value.split('-').map(Number);
-  const start=new Date(y,m-2,21), end=new Date(y,m-1,20);
-
-  let sum=0,count=0;
-  [...tbody.children].forEach(row=>{
-    const date=new Date(row.children[0].querySelector('input').value);
-    const type=row.children[1].querySelector('select').value;
-    const pallets=+row.children[2].querySelector('input').value||0;
-    let salary=0;
-    if(date>=start && date<=end && type){
-      salary=calc(type,pallets);
-      sum+=salary; count++;
-    }
-    row.querySelector(".salary").textContent=salary+" €";
+  tr.querySelectorAll("input,select").forEach(e => {
+    e.oninput = calculateAll;
   });
-  const extra=+extraAmount.value||0;
-  updateSummary(sum,count,sum+extra);
+
+  tbody.appendChild(tr);
+
 }
 
-function updateSummary(sum,count,total){
-  shiftSalary.textContent=sum+" €";
-  totalSalary.textContent=total+" €";
-  totalShifts.textContent=count;
+
+// =====================================
+// GEHALTSBERECHNUNG
+// =====================================
+
+// Aufrunden auf nächsten 5-Euro-Betrag
+
+function round5(v) {
+
+  return Math.ceil(v / 5) * 5;
+
 }
 
-// === 🔧 FIX: NUR GÜLTIGE SCHICHTEN SPEICHERN ===
-async function saveMonth(){
-  const user=auth.currentUser;
-  if(!user||!monthInput.value) return alert("Monat wählen!");
 
-  const [y,m]=monthInput.value.split('-').map(Number);
-  const start=new Date(y,m-2,21), end=new Date(y,m-1,20);
+// NEUE VERGÜTUNG
 
-  const rows=[...tbody.children].map(row=>{
-    const dateInput=row.children[0].querySelector('input');
-    const type=row.children[1].querySelector('select').value;
-    const pallets=row.children[2].querySelector('input').value;
-    if(!dateInput.value||!type) return null;
-    const date=new Date(dateInput.value);
-    if(date<start||date>end) return null;
-    return {date:dateInput.value,type,pallets};
+function calc(type, p) {
+
+  // Normale Schicht: 60 €
+
+  if (type === 'normal') return 60;
+
+  // Doppelschicht: 120 €
+
+  if (type === 'doppel') return 120;
+
+  // Extraschicht: 60 € Grundbetrag
+  // Ab Palette 18 zusätzlich 3,30 €
+
+  if (type === 'extra') {
+
+    return round5(
+      60 + Math.max(0, p - 17) * 3.3
+    );
+
+  }
+
+  return 0;
+
+}
+
+
+// =====================================
+// MONATSBERECHNUNG
+// =====================================
+
+function calculateAll() {
+
+  if (!monthInput.value) {
+
+    updateSummary(0, 0, 0);
+
+    return;
+
+  }
+
+  const [y, m] = monthInput.value.split('-').map(Number);
+
+  const start = new Date(y, m - 2, 21);
+  const end = new Date(y, m - 1, 20);
+
+  let sum = 0;
+  let count = 0;
+
+  [...tbody.children].forEach(row => {
+
+    const date = new Date(
+      row.children[0].querySelector('input').value
+    );
+
+    const type = row.children[1].querySelector('select').value;
+
+    const pallets =
+      +row.children[2].querySelector('input').value || 0;
+
+    let salary = 0;
+
+    if (date >= start && date <= end && type) {
+
+      salary = calc(type, pallets);
+
+      sum += salary;
+
+      count++;
+
+    }
+
+    row.querySelector(".salary").textContent = salary + " €";
+
+  });
+
+  const extra = +extraAmount.value || 0;
+
+  updateSummary(sum, count, sum + extra);
+
+}
+
+
+function updateSummary(sum, count, total) {
+
+  shiftSalary.textContent = sum.toFixed(2) + " €";
+
+  totalSalary.textContent = total.toFixed(2) + " €";
+
+  totalShifts.textContent = count;
+
+}
+
+
+// =====================================
+// MONAT SPEICHERN
+// =====================================
+
+async function saveMonth() {
+
+  const user = auth.currentUser;
+
+  if (!user || !monthInput.value) {
+
+    return alert("Bitte anmelden und Monat wählen!");
+
+  }
+
+  const [y, m] = monthInput.value.split('-').map(Number);
+
+  const start = new Date(y, m - 2, 21);
+  const end = new Date(y, m - 1, 20);
+
+  const rows = [...tbody.children].map(row => {
+
+    const dateInput =
+      row.children[0].querySelector('input');
+
+    const type =
+      row.children[1].querySelector('select').value;
+
+    const pallets =
+      row.children[2].querySelector('input').value;
+
+    if (!dateInput.value || !type) return null;
+
+    const date = new Date(dateInput.value);
+
+    if (date < start || date > end) return null;
+
+    return {
+
+      date: dateInput.value,
+
+      type,
+
+      pallets
+
+    };
+
   }).filter(Boolean);
 
-  const extra=+extraAmount.value||0;
-  const shiftTotal=rows.reduce((s,r)=>s+calc(r.type,+r.pallets||0),0);
 
-  await db.collection('users').doc(user.uid)
-    .collection('months').doc(monthInput.value)
+  const extra = +extraAmount.value || 0;
+
+  const shiftTotal = rows.reduce(
+    (s, r) => s + calc(r.type, +r.pallets || 0),
+    0
+  );
+
+
+  await db.collection('users')
+    .doc(user.uid)
+    .collection('months')
+    .doc(monthInput.value)
     .set({
+
       rows,
-      extraAmount:extra,
-      count:rows.length,
+
+      extraAmount: extra,
+
+      count: rows.length,
+
       shiftTotal,
-      total:shiftTotal+extra,
-      updated:firebase.firestore.FieldValue.serverTimestamp()
+
+      total: shiftTotal + extra,
+
+      updated: firebase.firestore.FieldValue.serverTimestamp()
+
     });
 
+
   await loadMonthListFromFirestore();
+
   await calculateYear();
-  alert("✅ Monat gespeichert");
+
+  alert("✅ Monat erfolgreich gespeichert!");
+
 }
 
-// === LADEN / LÖSCHEN / LISTEN ===
-async function loadSelectedMonth(){
-  const user=auth.currentUser;
-  if(!user||!savedMonths.value) return;
-  tbody.innerHTML='';
-  const doc=await db.collection('users').doc(user.uid)
-    .collection('months').doc(savedMonths.value).get();
-  const data=doc.data();
-  extraAmount.value=data.extraAmount||0;
+
+// =====================================
+// GESPEICHERTEN MONAT LADEN
+// =====================================
+
+async function loadSelectedMonth() {
+
+  const user = auth.currentUser;
+
+  if (!user || !savedMonths.value) {
+
+    deleteMonthBtn.style.display = "none";
+
+    return;
+
+  }
+
+  deleteMonthBtn.style.display = "inline-block";
+
+  tbody.innerHTML = '';
+
+  const doc = await db.collection('users')
+    .doc(user.uid)
+    .collection('months')
+    .doc(savedMonths.value)
+    .get();
+
+  if (!doc.exists) {
+
+    alert("Monat wurde nicht gefunden!");
+
+    return;
+
+  }
+
+  const data = doc.data();
+
+  monthInput.value = doc.id;
+
+  extraAmount.value = data.extraAmount || 0;
+
   data.rows.forEach(addRow);
-  while(tbody.children.length<5) addRow();
+
+  while (tbody.children.length < 5) {
+
+    addRow();
+
+  }
+
   calculateAll();
+
 }
 
-async function deleteSelectedMonth(){
-  const user=auth.currentUser;
-  if(!user||!savedMonths.value) return;
-  await db.collection('users').doc(user.uid)
-    .collection('months').doc(savedMonths.value).delete();
-  savedMonths.value='';
-  await loadMonthListFromFirestore();
-  await calculateYear();
+
+// =====================================
+// GESPEICHERTEN MONAT VOLLSTÄNDIG LÖSCHEN
+// =====================================
+
+async function deleteSelectedMonth() {
+
+  const user = auth.currentUser;
+
+  const selectedMonth = savedMonths.value;
+
+  if (!user || !selectedMonth) {
+
+    return alert("Bitte zuerst einen gespeicherten Monat auswählen!");
+
+  }
+
+  const confirmed = confirm(
+    `Möchtest du den Monat ${selectedMonth} wirklich vollständig löschen?\n\n` +
+    `Alle gespeicherten Schichten und Gehaltsdaten dieses Monats werden unwiderruflich entfernt.`
+  );
+
+  if (!confirmed) return;
+
+
+  try {
+
+    await db.collection('users')
+      .doc(user.uid)
+      .collection('months')
+      .doc(selectedMonth)
+      .delete();
+
+
+    // Auswahl zurücksetzen
+
+    savedMonths.value = "";
+
+    deleteMonthBtn.style.display = "none";
+
+
+    // Tabelle leeren
+
+    tbody.innerHTML = "";
+
+    for (let i = 0; i < 5; i++) {
+
+      addRow();
+
+    }
+
+
+    // Eingabefelder zurücksetzen
+
+    extraAmount.value = 0;
+
+    monthInput.value = "";
+
+
+    // Übersichten aktualisieren
+
+    calculateAll();
+
+    await loadMonthListFromFirestore();
+
+    await calculateYear();
+
+
+    alert(`✅ Der Monat ${selectedMonth} wurde vollständig gelöscht!`);
+
+  }
+
+  catch (error) {
+
+    console.error("Fehler beim Löschen:", error);
+
+    alert("❌ Der Monat konnte nicht gelöscht werden!");
+
+  }
+
 }
 
-async function loadMonthListFromFirestore(){
-  const user=auth.currentUser;
-  savedMonths.innerHTML='<option value="">📂 Gespeicherte Monate</option>';
-  const snap=await db.collection('users').doc(user.uid)
-    .collection('months').orderBy('updated','desc').get();
-  snap.forEach(doc=>{
-    const o=document.createElement('option');
-    o.value=doc.id;
-    o.textContent=`${doc.id} (${doc.data().count} Schichten, ${doc.data().total}€)`;
-    savedMonths.appendChild(o);
+
+// =====================================
+// GESPEICHERTE MONATE AUFLISTEN
+// =====================================
+
+async function loadMonthListFromFirestore() {
+
+  const user = auth.currentUser;
+
+  if (!user) return;
+
+  savedMonths.innerHTML =
+    '<option value="">📂 Gespeicherte Monate</option>';
+
+  deleteMonthBtn.style.display = "none";
+
+
+  const snap = await db.collection('users')
+    .doc(user.uid)
+    .collection('months')
+    .orderBy('updated', 'desc')
+    .get();
+
+
+  snap.forEach(doc => {
+
+    const data = doc.data();
+
+    const option = document.createElement('option');
+
+    option.value = doc.id;
+
+    option.textContent =
+      `${doc.id} (${data.count} Schichten, ${data.total} €)`;
+
+    savedMonths.appendChild(option);
+
   });
+
 }
 
-async function calculateYear(){
-  const user=auth.currentUser;
-  let sum=0,count=0;
-  const snap=await db.collection('users').doc(user.uid).collection('months').get();
-  snap.forEach(d=>{sum+=d.data().total||0;count+=d.data().count||0});
-  yearSalary.textContent=sum+" €";
-  yearShifts.textContent=count;
+
+// =====================================
+// JAHRESÜBERSICHT
+// =====================================
+
+async function calculateYear() {
+
+  const user = auth.currentUser;
+
+  if (!user) return;
+
+  let sum = 0;
+  let count = 0;
+
+
+  const snap = await db.collection('users')
+    .doc(user.uid)
+    .collection('months')
+    .get();
+
+
+  snap.forEach(d => {
+
+    sum += d.data().total || 0;
+
+    count += d.data().count || 0;
+
+  });
+
+
+  yearSalary.textContent = sum.toFixed(2) + " €";
+
+  yearShifts.textContent = count;
+
 }
 
-// INIT
-for(let i=0;i<5;i++) addRow();
+
+// =====================================
+// INITIALISIERUNG
+// =====================================
+
+for (let i = 0; i < 5; i++) {
+
+  addRow();
+
+}
+
 </script>
+
 </body>
 </html>
