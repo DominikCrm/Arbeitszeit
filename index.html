@@ -875,15 +875,17 @@ async function loadMonth(monthId) {
 
   if (!user || !monthId) return;
 
-
   tbody.innerHTML = "";
 
   extraAmount.value = "0";
 
   deleteMonthBtn.disabled = true;
 
-  savedMonths.value = "";
+  // Ausgewählten Monat im Dropdown beibehalten
+  const monthExists = [...savedMonths.options]
+    .some(option => option.value === monthId);
 
+  savedMonths.value = monthExists ? monthId : "";
 
   try {
 
@@ -893,9 +895,7 @@ async function loadMonth(monthId) {
       .doc(monthId)
       .get();
 
-
     monthInput.value = monthId;
-
 
     if (doc.exists) {
 
@@ -916,6 +916,23 @@ async function loadMonth(monthId) {
         "ℹ️ Noch keine gespeicherten Daten für diesen Monat.";
 
     }
+
+    while (tbody.children.length < 5) {
+      addRow();
+    }
+
+    calculateAll();
+
+  } catch (error) {
+
+    console.error(error);
+
+    monthStatus.textContent =
+      "❌ Fehler beim Laden des Monats.";
+
+  }
+
+}
 
 
     // Mindestens fünf Eingabezeilen
