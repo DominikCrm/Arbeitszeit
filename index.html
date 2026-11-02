@@ -149,8 +149,6 @@ button:disabled {
   gap: 4px;
 }
 
-/* Kalenderfelder */
-
 .calendar-wrapper {
   display: flex;
   align-items: center;
@@ -252,10 +250,7 @@ button:disabled {
 
     <div class="calendar-wrapper">
 
-      <input
-        type="month"
-        id="month"
-      >
+      <input type="month" id="month">
 
       <button
         type="button"
@@ -455,10 +450,12 @@ const userInfoSpan = document.getElementById("user-info");
 // ========================================
 
 function money(value) {
+
   return Number(value || 0).toLocaleString("de-DE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }) + " €";
+
 }
 
 
@@ -522,10 +519,15 @@ loginGoogle.onclick = async () => {
   const provider = new firebase.auth.GoogleAuthProvider();
 
   try {
+
     await auth.signInWithPopup(provider);
+
   } catch (error) {
+
     console.error(error);
+
     alert("Google-Anmeldung fehlgeschlagen.");
+
   }
 
 };
@@ -539,10 +541,15 @@ loginApple.onclick = async () => {
   provider.addScope("name");
 
   try {
+
     await auth.signInWithPopup(provider);
+
   } catch (error) {
+
     console.error(error);
+
     alert("Apple-Anmeldung fehlgeschlagen.");
+
   }
 
 };
@@ -567,6 +574,8 @@ auth.onAuthStateChanged(async user => {
     logoutBtn.style.display = "none";
 
     deleteMonthBtn.disabled = true;
+
+    savedMonths.value = "";
 
     tbody.innerHTML = "";
 
@@ -598,12 +607,14 @@ auth.onAuthStateChanged(async user => {
 
   // Aktuellen Abrechnungsmonat einstellen
 
-  monthInput.value = currentBillingMonth();
+  const currentMonth = currentBillingMonth();
+
+  monthInput.value = currentMonth;
 
 
   // Aktuellen Monat aus Firebase laden
 
-  await loadMonth(monthInput.value);
+  await loadMonth(currentMonth);
 
 
   // Jahresübersicht aktualisieren
@@ -614,15 +625,19 @@ auth.onAuthStateChanged(async user => {
 
 
 // ========================================
-// KALENDERBUTTONS
+// KALENDERBUTTON MONAT
 // ========================================
 
 document.getElementById("monthCalendarBtn").onclick = () => {
 
   if (monthInput.showPicker) {
+
     monthInput.showPicker();
+
   } else {
+
     monthInput.focus();
+
   }
 
 };
@@ -636,6 +651,8 @@ function addRow(data = {}) {
 
   const tr = document.createElement("tr");
 
+
+  // DATUM
 
   const dateTd = document.createElement("td");
 
@@ -661,9 +678,13 @@ function addRow(data = {}) {
   calendarBtn.onclick = () => {
 
     if (dateInput.showPicker) {
+
       dateInput.showPicker();
+
     } else {
+
       dateInput.focus();
+
     }
 
   };
@@ -674,6 +695,8 @@ function addRow(data = {}) {
 
   dateTd.appendChild(dateWrapper);
 
+
+  // SCHICHTTYP
 
   const typeTd = document.createElement("td");
 
@@ -691,6 +714,8 @@ function addRow(data = {}) {
   typeTd.appendChild(typeSelect);
 
 
+  // PALETTEN
+
   const palletTd = document.createElement("td");
 
   const palletInput = document.createElement("input");
@@ -702,11 +727,15 @@ function addRow(data = {}) {
   palletTd.appendChild(palletInput);
 
 
+  // GEHALT
+
   const salaryTd = document.createElement("td");
 
   salaryTd.className = "salary";
   salaryTd.textContent = money(0);
 
+
+  // LÖSCHEN
 
   const deleteTd = document.createElement("td");
 
@@ -761,19 +790,20 @@ function round5(value) {
 
 function calc(type, pallets) {
 
-  // Normale Schicht
+  // Normale Schicht: 60 €
 
   if (type === "normal") {
     return 60;
   }
 
-  // Doppelschicht
+  // Doppelschicht: 120 €
 
   if (type === "doppel") {
     return 120;
   }
 
-  // Extraschicht
+  // Extraschicht: 60 € Grundbetrag
+  // Ab Palette 18 zusätzlich 3,30 €
 
   if (type === "extra") {
 
@@ -875,17 +905,23 @@ async function loadMonth(monthId) {
 
   if (!user || !monthId) return;
 
+
   tbody.innerHTML = "";
 
   extraAmount.value = "0";
 
   deleteMonthBtn.disabled = true;
 
-  // Ausgewählten Monat im Dropdown beibehalten
+
+  // WICHTIG:
+  // Auswahl im Dropdown beibehalten,
+  // wenn der Monat dort vorhanden ist.
+
   const monthExists = [...savedMonths.options]
     .some(option => option.value === monthId);
 
   savedMonths.value = monthExists ? monthId : "";
+
 
   try {
 
@@ -895,7 +931,9 @@ async function loadMonth(monthId) {
       .doc(monthId)
       .get();
 
+
     monthInput.value = monthId;
+
 
     if (doc.exists) {
 
@@ -905,7 +943,7 @@ async function loadMonth(monthId) {
 
       (data.rows || []).forEach(addRow);
 
-      deleteMonthBtn.disabled = false;
+      deleteMonthBtn.disabled = true === false;
 
       monthStatus.textContent =
         "✅ Gespeicherter Monat geladen.";
@@ -917,28 +955,13 @@ async function loadMonth(monthId) {
 
     }
 
-    while (tbody.children.length < 5) {
-      addRow();
-    }
-
-    calculateAll();
-
-  } catch (error) {
-
-    console.error(error);
-
-    monthStatus.textContent =
-      "❌ Fehler beim Laden des Monats.";
-
-  }
-
-}
-
 
     // Mindestens fünf Eingabezeilen
 
     while (tbody.children.length < 5) {
+
       addRow();
+
     }
 
 
@@ -1054,7 +1077,10 @@ async function saveMonth() {
 
   const shiftTotal = rows.reduce((sum, row) => {
 
-    return sum + calc(row.type, Number(row.pallets) || 0);
+    return sum + calc(
+      row.type,
+      Number(row.pallets) || 0
+    );
 
   }, 0);
 
@@ -1109,7 +1135,7 @@ async function saveMonth() {
 
 
 // ========================================
-// MONAT LÖSCHEN
+// MONAT VOLLSTÄNDIG LÖSCHEN
 // ========================================
 
 deleteMonthBtn.onclick = async () => {
@@ -1166,7 +1192,9 @@ deleteMonthBtn.onclick = async () => {
 
 
     for (let i = 0; i < 5; i++) {
+
       addRow();
+
     }
 
 
@@ -1293,13 +1321,12 @@ document.getElementById("addRowBtn").onclick = () => addRow();
 // INITIALISIERUNG
 // ========================================
 
-// Die Monatsauswahl erfolgt nach erfolgreicher Anmeldung.
-// Ohne Anmeldung wird zumindest der aktuelle Monat angezeigt.
-
 monthInput.value = currentBillingMonth();
 
 for (let i = 0; i < 5; i++) {
+
   addRow();
+
 }
 
 </script>
